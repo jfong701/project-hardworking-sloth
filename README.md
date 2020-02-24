@@ -14,6 +14,7 @@ Have you ever walked all over campus looking for study space? Not anymore! Study
 - Based on user location, recommend closest study space with availability
 
 ## Key features for Final version
+- Chat with users in a study space
 - Aggregation of reports by multiple users to give more accurate estimates
 - Points system for users to reward them for helping out classmates
 - More properties for user accounts (profile pictures, program, names)
