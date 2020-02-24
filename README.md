@@ -30,7 +30,8 @@ Have you ever walked all over campus looking for study space? Not anymore! Study
 - NPM packages for integration between Maps and Frontend
 
 ## Top 5 Technical Challenges
-- Maps Integration: Learning to use and integrate a map API into our application
+- Maps API: Learning to use and integrate a map API into our application
 - Frontend: Learning to use a front end framework such as Vue or React
+- Maps frontend: Integration of map with the use of front end frameworks
 - Frontend design for all devices: Creating a Desktop and mobile Friendly, responsive design
 - NPM Packages and other libraries: Finding and using packages that may allow easier integration of map components in frontend, and handling location related data requests in backend
