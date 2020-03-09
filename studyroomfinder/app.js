@@ -1,6 +1,7 @@
 const bcrypt = require('bcrypt');
 const fs = require('fs');
 const path = require('path');
+const MongoClient = require('mongodb').MongoClient;
 const express = require('express');
 const app = express();
 
@@ -13,6 +14,20 @@ app.use(session({
     resave: false,
     saveUninitialized: true
 }));
+
+// to retrieve database variables from a .env file (keeping DB credentials out of source code)
+require('dotenv').config();
+
+
+// mongoDB testing connection on MongoDB Atlas
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@studyroomfinderdev-ds998.mongodb.net/test?retryWrites=true&w=majority`;
+// console.log('this is uri', uri);
+const client = new MongoClient(uri, { useNewUrlParser: true });
+client.connect(err => {
+  const collection = client.db("test").collection("devices");
+  // perform actions on the collection object
+  client.close();
+});
 
 app.use(express.static('static'));
 

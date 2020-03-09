@@ -8,3 +8,5 @@ uploads
 db
 *-lock.json
 
+# environment variables holding sensitive info (like DB credentials)
+.env
