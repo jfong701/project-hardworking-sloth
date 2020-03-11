@@ -24,9 +24,9 @@ app.use(session({
 const dbName = `${process.env.DB_NAME}`;
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@studyroomfinderdev-ds998.mongodb.net/test?retryWrites=true&w=majority`;
 let db;
-MongoClient.connect(uri, function(err, client) {
+MongoClient.connect(uri, {useUnifiedTopology: true}, function(err, client) {
     assert.equal(null, err);
-    console.log('Successfully connected to server');
+    console.log('Successfully connected to Mongo server');
     db = client.db(dbName);
 });
 
@@ -123,7 +123,12 @@ app.delete('/api/buildings/:buildingId/', function(req, res, next) {
 const http = require('http');
 const PORT = process.env.PORT || 3000;
 
-http.createServer(app).listen(PORT, function (err) {
+// http.createServer(app).listen(PORT, function (err) {
+//     if (err) console.log(err);
+//     else console.log("HTTP server on http://localhost:%s", PORT);
+// });
+
+app.listen(PORT, function(err) {
     if (err) console.log(err);
     else console.log("HTTP server on http://localhost:%s", PORT);
-});
+})
