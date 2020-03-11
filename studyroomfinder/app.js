@@ -5,19 +5,25 @@ const MongoClient = require('mongodb').MongoClient;
 const assert = require('assert');
 const express = require('express');
 const app = express();
-
-const bodyParser = require('body-parser');
-app.use(bodyParser.json());
-
-const session = require('express-session');
+const { body, check, validationResult } = require('express-validator');
 
 // to retrieve important variables from a .env file (keeping DB credentials and others out of source code)
 require('dotenv').config();
 
+const bodyParser = require('body-parser');
+app.use(bodyParser.json());
+
+const cookie = require('cookie');
+const session = require('express-session');
+
 app.use(session({
     secret: `${process.env.SESSION_SECRET}`,
     resave: false,
-    saveUninitialized: true
+    saveUninitialized: true,
+    cookie: {
+        // secure: true, // only allow cookie over HTTPS connection
+        sameSite: 'strict' // restrict cookie from being sent out of this site
+    } 
 }));
 
 // mongoDB testing connection on MongoDB Atlas
@@ -59,8 +65,132 @@ app.use(function (req, res, next){
 */
 
 
-// SIGN UP/IN/OUT -------------------------------------------------------------
+// HELPERS --------------------------------------------------------------------
 
+function buildErrorMessage(errors) {
+    errorMessage = '';
+    errors.array().forEach(error => {
+        switch (error.param) {
+            case 'username':
+            case 'firstName':
+            case 'lastName':
+                errorMsg = errorMsg.concat(error.param + ' must be alphanumeric; ');
+                break;
+            case 'email':
+                errorMsg = errorMsg.concat(error.param + ' must be an email address; ');
+                break;
+            case 'bio':
+                errorMsg = errorMsg.concat(error.param + ' must be less than 1000 characters; ');
+                break;
+            case 'password':
+                errorMsg = errorMsg.concat('password must be at least 8 characters; ');
+                break;
+        }
+    });
+    return errorMesssage.slice(0, -2)
+};
+
+let isAuthenticated = function(req, res, next) {
+    if (!req.session.username) return res.status(401).end("access denied");
+    next();
+};
+
+
+
+// SIGN UP/IN/OUT -------------------------------------------------------------
+app.post('/signup/', [
+    check('username').isAlphanumeric(),
+    check('password').isLength({ min: 8 }),
+    check('firstName').optional().isAlphanumeric(),
+    check('lastName').optional().isAlphanumeric(),
+    check('email').optional().isEmail(),
+    check('bio').optional().isLength({ max: 1000 })
+], function(req, res, next) {
+    
+    // validation
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        errorMsg = buildErrorMessage(errors);
+        return res.status(422).end(errorMsg);
+    }
+
+    let newUser = {
+        _id: req.body.username,
+        password: req.body.password,
+        firstName: req.body.firstName,
+        lastName: req.body.lastName,
+        email: req.body.email,
+        bio: req.body.bio,
+        imageId: req.body.imageId,
+        createdAt: new Date(),
+        updatedAt: new Date()
+    }
+
+    let users = db.collection('users');
+
+    users.findOne({_id: newUser._id}, function(err, user) {
+        if (err) return res.status(500).end(err);
+        if (user) return res.status(409).end("username " + newUser._id + " already exists");
+
+        bcrypt.genSalt(10, function(err, salt) {
+            bcrypt.hash(newUser.password, salt, function(err, saltedHash) {
+                newUser.password = saltedHash
+                users.insertOne(newUser, function(err, result) {
+                    if (err) return res.status(500).end(err);
+                    return res.json('user ' + newUser._id + ' signed up');
+                })
+            })
+        })
+    });
+
+});
+
+app.post('/signin/', [
+    check('username').isAlphanumeric(),
+], function (req, res, next) {
+
+    // validation
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        errorMsg = buildErrorMessage(errors);
+        return res.status(422).end(errorMsg);
+    }
+
+    let username = req.body.username;
+    let password = req.body.password;
+
+    // retrieve user from the db
+    let users = db.collection('users');
+    users.findOne({_id: username}, function(err, user) {
+        if (err) return res.status(500).end(err);
+        if (!user) return res.status(401).end('access denied. Have you created an account?');
+        bcrypt.compare(password, user.password, function(err, valid) {
+            if (err) return res.status(500).end(err);
+            if (!valid) return res.status(401).end('access denied');
+
+            // start session
+            req.session.user = user;
+            res.setHeader('Set-Cookie', cookie.serialize('username', user._id, {
+                // secure: true, /* only attach cookies on HTTPS connection*/
+                sameSite: 'strict', /* restrict cookie from being sent out of this site */
+                path : '/', 
+                maxAge: 60 * 60 * 24 * 7 // 1 week in number of seconds
+            }));
+            return res.json("user " + username + " signed in");
+        });
+    })
+});
+
+app.get('/signout/', function(req, res, next) {
+    req.session.destroy();
+    res.setHeader('Set-Cookie', cookie.serialize('username', '', {
+        // secure: true, /* only attach cookies on HTTPS connection*/
+        sameSite: 'strict', /* restrict cookie from being sent out of this site */
+        path : '/', 
+        maxAge: 60 * 60 * 24 * 7 // 1 week in number of seconds
+  }));
+  res.redirect('/');
+});
 
 // CREATE ---------------------------------------------------------------------
 
@@ -120,7 +250,7 @@ app.delete('/api/buildings/:buildingId/', function(req, res, next) {
     });
 });
 
-const http = require('http');
+// const http = require('http');
 const PORT = process.env.PORT || 3000;
 
 // http.createServer(app).listen(PORT, function (err) {
