@@ -48,27 +48,65 @@ app.use(function (req, res, next){
     building objects:
         - (String) _id (the name of the building)   (PK)
         - (String) description
-        - (String) imageId                          (FK)
+        - (String) imageId                          (FK, not required)
         - (Date) createdAt
         - (Date) updatedAt
 
     user objects:
         - (String) _id (the user entered username)  (PK)
-        - (String) saltedHash
+        - (String) password
         - (String) firstName
         - (String) lastName
-        - (String) email        (UNIQUE)
+        - (String) email                            (UNIQUE)
         - (String) bio
-        - (String) imageId
+        - (String) imageId                          (FK, not required)
+        - (Boolean) isAdmin
+        - (Date) createdAt
+        - (Date) updatedAt
+
+    study space objects:
+        - (String) _id (generated)           (PK)
+        - (String) name                      (required)
+        - (String) description
+        - (int) capacity                     (required)
+        - (String) buildingName              (FK)
+        - (String) studySpaceStatusName      (FK)
+        - (GeoJSON polygon) coordinates      (required)
+        - (String) hasOutlets
+        - (String) wifiQuality
+        - (Boolean) groupFriendly
+        - (Boolean) quietStudy
+        - (String) imageId                   (FK, not required)
         - (Date) createdAt
         - (Date) updatedAt
 */
 
+// use ES6 classes to make new objects
+class StudySpace {
+    constructor(name, description, capacity, buildingName, polygon, studySpaceStatusName, hasOutlets, wifiQuality, groupFriendly, quietStudy, imageId) {
+        // let mongo generate unique _id
+        this.name = name,
+        this.description = description,
+        this.capacity = capacity,
+        this.buildingName = buildingName,
+        this.polygon = polygon,
+        this.studySpaceStatusName = isNullOrUndef(studySpaceStatusName) ? 'Available' : studySpaceStatusName,
+        this.hasOutlets = hasOutlets,
+        this.wifiQuality = wifiQuality,
+        this.groupFriendly = groupFriendly,
+        this.quietStudy = quietStudy,
+        this.imageId = imageId,
+        this.createdAt = new Date(),
+        this.updatedAt = new Date()
+    }
+};
+
 
 // HELPERS --------------------------------------------------------------------
 
-function buildErrorMessage(errors) {
-    errorMessage = '';
+// customized for user validation
+function buildUsersErrorMessage(errors) {
+    errorMsg = '';
     errors.array().forEach(error => {
         switch (error.param) {
             case 'username':
@@ -87,30 +125,51 @@ function buildErrorMessage(errors) {
                 break;
         }
     });
-    return errorMesssage.slice(0, -2)
+    return errorMsg.slice(0, -2)
 };
 
+// generic error messages
+function buildErrorMessage(errors) {
+    errorMsg = '';
+    errors.array().forEach(error => {
+        errorMsg = errorMsg.concat(error.param + ': ' + error.msg + '; ');
+    });
+    return errorMsg.slice(0, -2)
+};
+
+function isNullOrUndef(item) {
+    if (item === null || item === undefined) { return true; }
+    return false;
+}
+
 let isAuthenticated = function(req, res, next) {
-    if (!req.session.username) return res.status(401).end("access denied");
+    if (!req.session.username) return res.status(401).end('access denied');
     next();
 };
+
+let isAdmin = function(req, res, next) {
+    db.collection('users').findOne({_id: req.session.username, isAdmin: true}, function(err, result) {
+        if (err) return res.status(401).end('access denied, user is not admin');
+    })
+    next();
+}
 
 
 
 // SIGN UP/IN/OUT -------------------------------------------------------------
 app.post('/signup/', [
-    check('username').isAlphanumeric(),
-    check('password').isLength({ min: 8 }),
-    check('firstName').optional().isAlphanumeric(),
-    check('lastName').optional().isAlphanumeric(),
-    check('email').optional().isEmail(),
-    check('bio').optional().isLength({ max: 1000 })
+    body('username').isAlphanumeric().isLength({max: 100}),
+    body('password').isLength({ min: 8 }),
+    body('firstName').optional().trim().escape(),
+    body('lastName').optional().trim().escape(),
+    body('email').optional().isEmail().trim().normalizeEmail(),
+    body('bio').optional().isLength({ max: 1000 }).trim().escape(),
 ], function(req, res, next) {
     
     // validation
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        errorMsg = buildErrorMessage(errors);
+        errorMsg = buildUsersErrorMessage(errors);
         return res.status(422).end(errorMsg);
     }
 
@@ -122,6 +181,7 @@ app.post('/signup/', [
         email: req.body.email,
         bio: req.body.bio,
         imageId: req.body.imageId,
+        isAdmin: false,
         createdAt: new Date(),
         updatedAt: new Date()
     }
@@ -152,7 +212,7 @@ app.post('/signin/', [
     // validation
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        errorMsg = buildErrorMessage(errors);
+        errorMsg = buildUsersErrorMessage(errors);
         return res.status(422).end(errorMsg);
     }
 
@@ -193,6 +253,59 @@ app.get('/signout/', function(req, res, next) {
 });
 
 // CREATE ---------------------------------------------------------------------
+
+// create a study space
+app.post('/api/studySpaces/',
+// isAuthenticated, isAdmin,
+[
+    body('name').isLength({max: 200}).trim(),
+    body('description').optional().isLength({max: 200}).trim().escape(),
+    body('capacity').isNumeric({no_symbols: true}),
+    body('buildingName').isLength({max: 200}).trim().escape(),
+    body('studySpaceStatusName').optional().isLength({max: 200}).trim().escape(),
+    body('polygon').not().isEmpty(),
+    body('hasOutlets').optional().isLength({max: 100}).trim().escape(),
+    body('wifiQuality').optional().isLength({max: 100}).trim().escape(),
+    body('groupFriendly').optional().isBoolean(),
+    body('quietStudy').optional().isBoolean(),
+    body('imageId').optional().isMongoId()
+],
+function(req, res, next) {
+    
+    let newStudySpace = new StudySpace(
+        req.body.name,
+        req.body.description,
+        req.body.capacity,
+        req.body.buildingName,
+        req.body.polygon,
+        req.body.studySpaceStatusName,
+        req.body.hasOutlets,
+        req.body.wifiQuality,
+        req.body.groupFriendly,
+        req.body.quietStudy,
+        req.body.imageId
+    );
+
+    // validation
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        errorMsg = buildErrorMessage(errors);
+        return res.status(422).end(errorMsg);
+    }
+    
+    // ensure buildingName, studySpaceStatusName, and imageId are valid
+    db.collection('buildings').findOne({_id: newStudySpace.buildingName}, function(err, building) {
+        if (building === null) {
+            return res.status(422).end('provided buildingName does not exist');
+        }
+    });
+
+    // insert study space
+    db.collection('studySpaces').insertOne(newStudySpace, function(err, result) {
+        if(err) return res.status(500).end(err);
+        return res.json(newStudySpace);
+    });
+});
 
 // create a building
 app.post('/api/buildings/', function(req, res, next) {
