@@ -82,8 +82,32 @@ app.use(function (req, res, next){
 */
 
 // use ES6 classes to make new objects
+
+class Building {
+    constructor(buildingName, description, imageId, createdAt, updatedAt) {
+        this._id = buildingName,
+        this.description = description,
+        this.imageId = imageId,
+        this.createdAt = isNullOrUndef(createdAt) ? new Date() : createdAt,
+        this.updatedAt = isNullOrUndef(createdAt) ? new Date() : updatedAt
+    };
+};
+class User {
+    constructor(username, password, firstName, lastName, email, bio, imageId, createdAt, updatedAt) {
+        this._id = username,
+        this.password = password,
+        this.firstName = firstName,
+        this.lastName = lastName,
+        this.email = email,
+        this.bio = bio,
+        this.imageId = imageId,
+        this.isAdmin = false,
+        this.createdAt = isNullOrUndef(createdAt) ? new Date() : createdAt
+        this.updatedAt = isNullOrUndef(createdAt) ? new Date() : updatedAt
+    }
+};
 class StudySpace {
-    constructor(name, description, capacity, buildingName, polygon, studySpaceStatusName, hasOutlets, wifiQuality, groupFriendly, quietStudy, imageId) {
+    constructor(name, description, capacity, buildingName, polygon, studySpaceStatusName, hasOutlets, wifiQuality, groupFriendly, quietStudy, imageId, createdAt, updatedAt) {
         // let mongo generate unique _id
         this.name = name,
         this.description = description,
@@ -96,8 +120,8 @@ class StudySpace {
         this.groupFriendly = groupFriendly,
         this.quietStudy = quietStudy,
         this.imageId = imageId,
-        this.createdAt = new Date(),
-        this.updatedAt = new Date()
+        this.createdAt = isNullOrUndef(createdAt) ? new Date() : createdAt,
+        this.updatedAt = isNullOrUndef(createdAt) ? new Date() : updatedAt
     }
 };
 
@@ -121,7 +145,7 @@ function buildUsersErrorMessage(errors) {
                 errorMsg = errorMsg.concat(error.param + ' must be less than 1000 characters; ');
                 break;
             case 'password':
-                errorMsg = errorMsg.concat('password must be at least 8 characters; ');
+                errorMsg = errorMsg.concat('password must be at least 8 characters and less than 16; ');
                 break;
         }
     });
@@ -154,17 +178,24 @@ let isAdmin = function(req, res, next) {
     next();
 }
 
+// takes in array of strings, throws 400 if param is missing from request body
+function checkRequiredBodyParams(req, requiredBodyParams) {
+    requiredBodyParams.forEach(param => {
+        if (!(param in req.body)) return res.status(400).end(param + ' is missing');
+    });
+}
 
 
 // SIGN UP/IN/OUT -------------------------------------------------------------
 app.post('/signup/', [
     body('username').isAlphanumeric().isLength({max: 100}),
-    body('password').isLength({ min: 8 }),
+    body('password').isLength({ min: 8, max: 16 }),
     body('firstName').optional().trim().escape(),
     body('lastName').optional().trim().escape(),
     body('email').optional().isEmail().trim().normalizeEmail(),
     body('bio').optional().isLength({ max: 1000 }).trim().escape(),
 ], function(req, res, next) {
+    checkRequiredBodyParams(req, ['username', 'password']);
     
     // validation
     const errors = validationResult(req);
@@ -173,18 +204,15 @@ app.post('/signup/', [
         return res.status(422).end(errorMsg);
     }
 
-    let newUser = {
-        _id: req.body.username,
-        password: req.body.password,
-        firstName: req.body.firstName,
-        lastName: req.body.lastName,
-        email: req.body.email,
-        bio: req.body.bio,
-        imageId: req.body.imageId,
-        isAdmin: false,
-        createdAt: new Date(),
-        updatedAt: new Date()
-    }
+    let newUser = new User(
+        req.body.username,
+        req.body.password,
+        req.body.firstName,
+        req.body.lastName,
+        req.body.email,
+        req.body.bio,
+        req.body.imageId
+    );
 
     let users = db.collection('users');
 
@@ -207,7 +235,9 @@ app.post('/signup/', [
 
 app.post('/signin/', [
     check('username').isAlphanumeric(),
+    check('password').isLength({min: 8, max: 16})
 ], function (req, res, next) {
+    checkRequiredBodyParams(req, ['username', 'password']);
 
     // validation
     const errors = validationResult(req);
@@ -259,10 +289,10 @@ app.post('/api/studySpaces/',
 // isAuthenticated, isAdmin,
 [
     body('name').isLength({max: 200}).trim(),
-    body('description').optional().isLength({max: 200}).trim().escape(),
+    body('description').optional().isLength({max: 500}).trim().escape(),
     body('capacity').isNumeric({no_symbols: true}),
     body('buildingName').isLength({max: 200}).trim().escape(),
-    body('studySpaceStatusName').optional().isLength({max: 200}).trim().escape(),
+    body('studySpaceStatusName').optional().isLength({max: 100}).trim().escape(),
     body('polygon').not().isEmpty(),
     body('hasOutlets').optional().isLength({max: 100}).trim().escape(),
     body('wifiQuality').optional().isLength({max: 100}).trim().escape(),
@@ -271,6 +301,8 @@ app.post('/api/studySpaces/',
     body('imageId').optional().isMongoId()
 ],
 function(req, res, next) {
+    let requiredBodyParams = ['name', 'capacity', 'buildingName', 'polygon'];
+    checkRequiredBodyParams(req, requiredBodyParams);
     
     let newStudySpace = new StudySpace(
         req.body.name,
@@ -298,32 +330,41 @@ function(req, res, next) {
         if (building === null) {
             return res.status(422).end('provided buildingName does not exist');
         }
-    });
+        
+        // TODO: ensure studySpaceStatusName is valid
 
-    // insert study space
-    db.collection('studySpaces').insertOne(newStudySpace, function(err, result) {
-        if(err) return res.status(500).end(err);
-        return res.json(newStudySpace);
+        // TODO: ensure imageId, if provided, is valid
+
+        // insert study space
+        db.collection('studySpaces').insertOne(newStudySpace, function(err, result) {
+            if(err) return res.status(500).end(err);
+            return res.json(newStudySpace);
+        });
     });
 });
 
 // create a building
-app.post('/api/buildings/', function(req, res, next) {
-    if (!('_id' in req.body)) return res.status(400).end('_id is missing');
+app.post('/api/buildings/', [
+    body('name').isLength({max: 200}).trim().escape(),
+    body('description').optional().isLength({max: 500}).trim().escape()
+],
+function(req, res, next) {
+    if (!('name' in req.body)) return res.status(400).end('name is missing');
 
-    let newBuilding = {
-        _id: req.body._id,
-        description: req.body.description,
-        imageId: req.body.imageId,
-        createdAt: new Date(),
-        updatedAt: new Date()
-    };
-    
+    // validation
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        errorMsg = buildErrorMessage(errors);
+        return res.status(422).end(errorMsg);
+    }
+
+    let newBuilding = new Building(req.body.name, req.body.description, req.body.imageId);
+
     let buildings = db.collection('buildings');
     
-    buildings.findOne({_id: req.body._id}, function(err, building) {
+    buildings.findOne({_id: newBuilding._id}, function(err, building) {
         if (err) return res.status(500).end(err);
-        if (building) return res.status(409).end('building _id: ' + req.body._id + ' already exists');
+        if (building) return res.status(409).end('building _id: ' + newBuilding._id + ' already exists');
 
         // insert building
         buildings.insertOne(newBuilding, function(err, result) {
