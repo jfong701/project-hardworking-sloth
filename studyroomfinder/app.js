@@ -5,7 +5,7 @@ const mongo = require('mongodb');
 const assert = require('assert');
 const express = require('express');
 const app = express();
-const { body, check, validationResult } = require('express-validator');
+const { body, check, param, validationResult } = require('express-validator');
 
 // to retrieve important variables from a .env file (keeping DB credentials and others out of source code)
 require('dotenv').config();
@@ -348,7 +348,9 @@ function(req, res, next) {
 });
 
 // create a building
-app.post('/api/buildings/', [
+app.post('/api/buildings/',
+// isAuthenticated, isAdmin,
+[
     body('name').exists().isLength({max: 200}).trim().escape(),
     body('description').optional().isLength({max: 500}).trim().escape()
 ],
@@ -392,6 +394,7 @@ app.get('/api/buildings/', function(req, res, next) {
 
 // update a study space
 app.patch('/api/studySpaces/',
+// isAuthenticated, isAdmin,
 [
     body('_id').exists().isMongoId(),
     body('name').optional().isLength({max: 200}).trim(),
@@ -432,11 +435,13 @@ function(req, res, next) {
         new Date() // sets updatedAt to current time
     );
 
+    let studySpaces = db.collection('studySpaces');
+
     // Use Promises to do DB checks for validity of data
 
     // check if the study space to update exists
     let studySpaceExists = new Promise((resolve, reject) => {
-        db.collection('studySpaces').findOne({_id: newStudySpace._id}, function(err, studySpace) {
+        studySpaces.findOne({_id: newStudySpace._id}, function(err, studySpace) {
             if (studySpace === null) { reject('provided studySpace does not exist'); }
             else { resolve(); }
         });
@@ -466,15 +471,15 @@ function(req, res, next) {
         }
     });
 
-    // Check that all promises resolve, if one of them fails, 
+    // Check that all promises resolve, if one of them fails, then send error code
     Promise.all([studySpaceExists, buildingNameValid, imageIdValid])
     .then(() => {
-        // remove all undefined properties from the newStudySpace object, ensures only provided fields are set by Mongo
+        // remove all undefined properties from the newStudySpace object, ensures only provided fields in request are set by Mongo
         // from https://stackoverflow.com/a/38340374
         Object.keys(newStudySpace).forEach(key => newStudySpace[key] === undefined && delete newStudySpace[key]);
 
         // update study space record
-        db.collection('studySpaces').updateOne({_id: newStudySpace._id}, { $set: newStudySpace }, function(err, result) {
+        studySpaces('studySpaces').updateOne({_id: newStudySpace._id}, { $set: newStudySpace }, function(err, result) {
             if(err) return res.status(500).end(err);
             return res.json(newStudySpace);
         });
@@ -489,17 +494,66 @@ function(req, res, next) {
 // DELETE ---------------------------------------------------------------------
 
 // delete a building
-app.delete('/api/buildings/:buildingId/', function(req, res, next) {
+app.delete('/api/buildings/:buildingId/',
+// isAuthenticated, isAdmin,
+[
+    param('buildingId').exists().escape()
+],
+function(req, res, next) {
+
+    // validation
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        errorMsg = buildErrorMessage(errors);
+        return res.status(422).end(errorMsg);
+    }
+
     let buildings = db.collection('buildings');
     buildings.findOne({_id: req.params.buildingId}, function(err, building) {
         if (err) return res.status(500).end(err);
         if (!building) return res.status(404).end('Cannot delete building. Building _id: ' + req.params.buildingId + ' does not exist');
         
-        buildings.removeOne({_id: building._id}, {multi: false}, function(err) {
+        buildings.deleteOne({_id: building._id}, function(err) {
             if (err) return res.status(500).end(err);
             res.json(building);
         });
     });
+});
+
+// delete a study space
+app.delete('/api/studySpaces/:studySpaceId/', 
+// isAuthenticated, isAdmin,
+[
+    param('studySpaceId').isMongoId()
+],
+function(req, res, next) {
+    // validation
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        errorMsg = buildErrorMessage(errors);
+        return res.status(422).end(errorMsg);
+    }
+
+    // declare variables for convenience
+    let studySpaces = db.collection('studySpaces');
+    let studySpaceId = new mongo.ObjectID(req.params.studySpaceId);
+
+        // find the study space, if it exists:
+        studySpaces.findOne({_id: studySpaceId}, function(err, studySpace){
+            if (!studySpace) return res.status(404).end('Cannot delete studySpace. studySpace _id: ' + studySpaceId + ' does not exist');
+
+            // delete the studyspace
+            studySpaces.deleteOne({_id: studySpaceId}, function(err) {
+                if (err) return res.status(500).end(err);
+                res.json(studySpace);
+            });
+            
+            // TODO: delete the usersFavourites of this studySpace
+
+            // TODO: delete studyspace reviews
+
+            // TODO: delete availability reports of this space
+        });
 });
 
 // const http = require('http');
