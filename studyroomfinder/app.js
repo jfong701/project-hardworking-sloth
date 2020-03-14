@@ -181,6 +181,8 @@ let isAdmin = function(req, res, next) {
 
 
 // SIGN UP/IN/OUT -------------------------------------------------------------
+
+
 app.post('/signup/', [
     body('username').exists().isAlphanumeric().isLength({max: 100}),
     body('password').exists().isLength({ min: 8, max: 16 }),
@@ -228,6 +230,7 @@ app.post('/signup/', [
 
 });
 
+
 app.post('/signin/', [
     check('username').exists().isAlphanumeric(),
     check('password').exists().isLength({min: 8, max: 16})
@@ -264,6 +267,7 @@ app.post('/signin/', [
     });
 });
 
+
 app.get('/signout/', function(req, res, next) {
     req.session.destroy();
     res.setHeader('Set-Cookie', cookie.serialize('username', '', {
@@ -275,7 +279,9 @@ app.get('/signout/', function(req, res, next) {
   res.redirect('/');
 });
 
+
 // CREATE ---------------------------------------------------------------------
+
 
 // create a study space
 app.post('/api/studySpaces/',
@@ -347,6 +353,7 @@ function(req, res, next) {
     });
 });
 
+
 // create a building
 app.post('/api/buildings/',
 // isAuthenticated, isAdmin,
@@ -382,6 +389,7 @@ function(req, res, next) {
 
 // READ -----------------------------------------------------------------------
 
+
 // get all buildings
 app.get('/api/buildings/', function(req, res, next) {
     db.collection('buildings').find({}).toArray(function(err, buildings) {
@@ -390,7 +398,71 @@ app.get('/api/buildings/', function(req, res, next) {
     });
 });
 
+
+// get all study spaces
+app.get('/api/studySpaces/', function(req, res, next) {
+    db.collection('studySpaces').find({}).toArray(function(err, studySpaces) {
+        if (err) return res.status(500).end(err);
+        return res.json(studySpaces);
+    });
+});
+
+
+// get a study space by id
+app.get('/api/studySpaces/:studySpaceId', 
+[
+    param('studySpaceId').isMongoId()
+],
+function(req, res, next) {
+
+    // validation
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        errorMsg = buildErrorMessage(errors);
+        return res.status(422).end(errorMsg);
+    }
+
+    let studySpaceId = mongo.ObjectID(req.params.studySpaceId);
+    db.collection('studySpaces').findOne({_id: studySpaceId}, function(err, studySpace) {
+        if (err) return res.status(500).end(err);
+        if (studySpace === null) return res.status(404).end('Provided studySpace._id does not exist');
+
+        return res.json(studySpace);
+    });
+});
+
+
+// get all study spaces in a building
+app.get('/api/buildings/:buildingId/studySpaces/',
+[
+    param('buildingId').trim().escape(),
+],
+function(req, res, next) {
+
+    // validation
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        errorMsg = buildErrorMessage(errors);
+        return res.status(422).end(errorMsg);
+    }
+
+    let buildingId = req.params.buildingId;
+
+    db.collection('buildings').findOne({_id: buildingId}, function(err, building) {
+        if (err) return res.status(500).end(err);
+        if (building === null) return res.status(404).end('Provided building._id does not exist');
+
+        db.collection('studySpaces').find({buildingName: buildingId}).toArray(function(err, studySpaces) {
+            if (err) return res.status(500).end(err);
+            return res.json(studySpaces);
+        });
+
+    });
+});
+
+
 // UPDATE ---------------------------------------------------------------------
+
 
 // update a study space
 app.patch('/api/studySpaces/',
@@ -491,7 +563,9 @@ function(req, res, next) {
 
 });
 
+
 // DELETE ---------------------------------------------------------------------
+
 
 // delete a building
 app.delete('/api/buildings/:buildingId/',
@@ -520,6 +594,7 @@ function(req, res, next) {
     });
 });
 
+
 // delete a study space
 app.delete('/api/studySpaces/:studySpaceId/', 
 // isAuthenticated, isAdmin,
@@ -538,22 +613,22 @@ function(req, res, next) {
     let studySpaces = db.collection('studySpaces');
     let studySpaceId = new mongo.ObjectID(req.params.studySpaceId);
 
-        // find the study space, if it exists:
-        studySpaces.findOne({_id: studySpaceId}, function(err, studySpace){
-            if (!studySpace) return res.status(404).end('Cannot delete studySpace. studySpace _id: ' + studySpaceId + ' does not exist');
+    // find the study space, if it exists:
+    studySpaces.findOne({_id: studySpaceId}, function(err, studySpace){
+        if (!studySpace) return res.status(404).end('Cannot delete studySpace. studySpace _id: ' + studySpaceId + ' does not exist');
 
-            // delete the studyspace
-            studySpaces.deleteOne({_id: studySpaceId}, function(err) {
-                if (err) return res.status(500).end(err);
-                res.json(studySpace);
-            });
-            
-            // TODO: delete the usersFavourites of this studySpace
-
-            // TODO: delete studyspace reviews
-
-            // TODO: delete availability reports of this space
+        // delete the studyspace
+        studySpaces.deleteOne({_id: studySpaceId}, function(err) {
+            if (err) return res.status(500).end(err);
+            res.json(studySpace);
         });
+        
+        // TODO: delete the usersFavourites of this studySpace
+
+        // TODO: delete studyspace reviews
+
+        // TODO: delete availability reports of this space
+    });
 });
 
 // const http = require('http');
