@@ -137,7 +137,7 @@ function buildUsersErrorMessage(errors) {
             case 'username':
             case 'firstName':
             case 'lastName':
-                errorMsg = errorMsg.concat(error.param + ' must be alphanumeric; ');
+                errorMsg = errorMsg.concat(error.param + ' must be a String; ');
                 break;
             case 'email':
                 errorMsg = errorMsg.concat(error.param + ' must be an email address; ');
@@ -184,8 +184,8 @@ let isAdmin = function(req, res, next) {
 
 
 app.post('/signup/', [
-    body('username').exists().isAlphanumeric().isLength({max: 100}),
-    body('password').exists().isLength({ min: 8, max: 16 }),
+    body('username').exists().isAlphanumeric().trim().isLength({max: 100}).escape(),
+    body('password').exists().isString().isLength({ min: 8, max: 16 }).escape(),
     body('firstName').optional().trim().escape(),
     body('lastName').optional().trim().escape(),
     body('email').optional().isEmail().trim().normalizeEmail(),
@@ -196,7 +196,7 @@ app.post('/signup/', [
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         errorMsg = buildUsersErrorMessage(errors);
-        return res.status(422).end(errorMsg);
+        return res.status(400).end(errorMsg);
     }
 
     let newUser = new User(
@@ -239,7 +239,7 @@ app.post('/signin/', [
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         errorMsg = buildUsersErrorMessage(errors);
-        return res.status(422).end(errorMsg);
+        return res.status(400).end(errorMsg);
     }
 
     let username = req.body.username;
@@ -304,7 +304,7 @@ function(req, res, next) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         errorMsg = buildErrorMessage(errors);
-        return res.status(422).end(errorMsg);
+        return res.status(400).end(errorMsg);
     }
 
     let newStudySpace = new StudySpace(
@@ -326,11 +326,11 @@ function(req, res, next) {
     
     // ensure buildingName, studySpaceStatusName, and imageId are valid
     db.collection('buildings').findOne({_id: newStudySpace.buildingName}, function(err, building) {
-        if (building === null) { return res.status(422).end('provided buildingName does not exist'); }
+        if (building === null) { return res.status(400).end('provided buildingName does not exist'); }
         
         // TODO: ensure studySpaceStatusName is valid
         db.collection('studySpaceStatuses').findOne({_id: newStudySpace.studySpaceStatusName}, function(err, statusName) {
-            if (statusName === null) { return res.status(422).end('provided study space status does not exist'); }
+            if (statusName === null) { return res.status(400).end('provided study space status does not exist'); }
             
             // TODO: ensure imageId, if provided, is valid
             if (isNullOrUndef(newStudySpace.imageId)) {
@@ -341,7 +341,7 @@ function(req, res, next) {
                 });
             } else {                
                 db.collection('images').findOne({_id: newStudySpace.imageId}, function(err, image) {
-                    if (image == null) { return res.status(422).end('provided image does not exist'); }
+                    if (image == null) { return res.status(400).end('provided image does not exist'); }
                     // insert study space
                     db.collection('studySpaces').insertOne(newStudySpace, function(err, result) {
                         if(err) return res.status(500).end(err);
@@ -367,7 +367,7 @@ function(req, res, next) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         errorMsg = buildErrorMessage(errors);
-        return res.status(422).end(errorMsg);
+        return res.status(400).end(errorMsg);
     }
 
     let newBuilding = new Building(req.body.name, req.body.description, req.body.imageId, new Date(), new Date());
@@ -419,7 +419,7 @@ function(req, res, next) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         errorMsg = buildErrorMessage(errors);
-        return res.status(422).end(errorMsg);
+        return res.status(400).end(errorMsg);
     }
 
     let studySpaceId = mongo.ObjectID(req.params.studySpaceId);
@@ -443,7 +443,7 @@ function(req, res, next) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         errorMsg = buildErrorMessage(errors);
-        return res.status(422).end(errorMsg);
+        return res.status(400).end(errorMsg);
     }
 
     let buildingId = req.params.buildingId;
@@ -487,7 +487,7 @@ function(req, res, next) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         errorMsg = buildErrorMessage(errors);
-        return res.status(422).end(errorMsg);
+        return res.status(400).end(errorMsg);
     }
 
     let newStudySpace = new StudySpace(
@@ -557,8 +557,8 @@ function(req, res, next) {
         });
     })
     .catch((rejectReason) => {
-        // any of the promises rejected, then data is invalid, send a 422 response with the reason
-        return res.status(422).end(rejectReason);
+        // any of the promises rejected, then data is invalid, send a 400 response with the reason
+        return res.status(400).end(rejectReason);
     });
 
 });
@@ -579,7 +579,7 @@ function(req, res, next) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         errorMsg = buildErrorMessage(errors);
-        return res.status(422).end(errorMsg);
+        return res.status(400).end(errorMsg);
     }
 
     let buildings = db.collection('buildings');
@@ -606,7 +606,7 @@ function(req, res, next) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         errorMsg = buildErrorMessage(errors);
-        return res.status(422).end(errorMsg);
+        return res.status(400).end(errorMsg);
     }
 
     // declare variables for convenience
