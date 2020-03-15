@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+</head>
+<body>
+    <header>
+        <!-- TODO: Add any missing header elements -->
+        <a href="/" id="title">Study Room Finder</a>
+    </header>
+    <p class="err_msg"></p>
+    <!-- TODO: Edit required information from user to match db -->
+        <form id="signup_form">
+            <p>Enter a username <input type="text" name="username"   required/></p>
+            <p>Enter your email <input type="email" name="email" required></p>
+            <p>Enter a password <input type="password" name="password" required></p>
+            <p>Re-enter your password <input type="password" name="re-password" required></p>
+            <input type="submit" id="signup" name="action" value="Submit">
+        </form>
+    <footer>
+      <a href='/credits.html'>credits</a>
+    </footer>
+    <!-- TODO: Make sure app.js and signup.js are in the given directories -->
+    <script type="text/javascript" src="./js/api.js"></script>
+    <script type="text/javascript" src="./js/signup.js"></script>
+</body>
+</html>
