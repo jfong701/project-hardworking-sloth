@@ -16,6 +16,9 @@ app.use(bodyParser.json());
 const cookie = require('cookie');
 const session = require('express-session');
 
+// time delay used for limiting availability reports, and filtering seeing only reports made for this study space
+const minutesDelay = 5;
+
 app.use(session({
     secret: `${process.env.SESSION_SECRET}`,
     resave: false,
@@ -198,6 +201,7 @@ let isAdmin = function(req, res, next) {
 };
 
 // common DB checks
+// note: studySpaceId is of type mongo.ObjectID
 let studySpaceIdExists = function(studySpaceId) {
     return new Promise((resolve, reject) => {
         db.collection('studySpaces').findOne({_id: studySpaceId}, function(err, studySpace) {
@@ -228,6 +232,7 @@ let buildingNameExists = function(buildingName) {
     });
 };
 
+// note: imageId is of type mongo.ObjectID
 let imageIdExists = function(imageId) {
     return new Promise((resolve, reject) => {
         db.collection('images').findOne({_id: imageId}, function(err, image) {
@@ -457,6 +462,7 @@ app.post('/api/studySpaces/:studySpaceId/availabilityReports/',
 isAuthenticated,
 [
     param('studySpaceId').isMongoId(),
+    body('studySpaceStatusName').exists().isLength({min: 1, max: 100}).trim().escape(),   
 ],
 function(req, res, next) {
     // validation
@@ -490,9 +496,6 @@ function(req, res, next) {
         // remove all undefined properties from the newStudySpace object, ensures only provided fields in request are set by Mongo
         // from https://stackoverflow.com/a/38340374
         Object.keys(newAR).forEach(key => newAR[key] === undefined && delete newAR[key]);
-
-        // ensure the user has not made a report for this studySpace in the last X minutes
-        const minutesDelay = 5;
 
         let availabilityReports = db.collection('availabilityReports');
         // get the one latest availabiltiy report by this user on this study space
@@ -593,6 +596,36 @@ function(req, res, next) {
     });
 });
 
+// get the availability reports made for a study space in the last X minutes
+app.get('/api/studySpaces/:studySpaceId/availabilityReports/',
+[
+    param('studySpaceId').isMongoId(),
+],
+function(req, res, next) {
+    // validation
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        errorMsg = buildErrorMessage(errors);
+        return res.status(400).end(errorMsg);
+    }
+
+    let studySpaceId = new mongo.ObjectID(req.params.studySpaceId);
+    console.log('study space id', studySpaceId);
+
+    studySpaceIdExists(studySpaceId).then(() => {
+        // the time minutesDelay ago
+        XminsAgo = new Date(Date.now() - minutesDelay*60*1000);
+
+        db.collection('availabilityReports').find({studySpaceId: studySpaceId, createdAt: { $gte: XminsAgo }}).toArray(function(err, reports) {
+            if (err) return res.status(500).end(err);
+            return res.json(reports);
+        });
+    })
+    .catch((rejectReason) => {
+        return res.status(400).end(rejectReason.message);
+    })
+});
+
 
 // UPDATE ---------------------------------------------------------------------
 
@@ -635,7 +668,7 @@ function(req, res, next) {
         req.body.wifiQuality,
         req.body.groupFriendly,
         req.body.quietStudy,
-        req.body.imageId,
+        new mongo.ObjectID(req.body.imageId),
         undefined,
         new Date() // sets updatedAt to current time
     );
