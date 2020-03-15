@@ -184,6 +184,7 @@ function isNullOrUndef(item) {
     return false;
 }
 
+// request checking
 let isAuthenticated = function(req, res, next) {
     if (!req.session.username) return res.status(401).end('access denied');
     next();
@@ -194,6 +195,47 @@ let isAdmin = function(req, res, next) {
         if (err) return res.status(401).end('access denied, user is not admin');
     });
     next();
+};
+
+// common DB checks
+let studySpaceIdExists = function(studySpaceId) {
+    return new Promise((resolve, reject) => {
+        db.collection('studySpaces').findOne({_id: studySpaceId}, function(err, studySpace) {
+            if (err) return res.status(500).end(err);
+            if (studySpace === null) { reject(new Error('provided studySpaceId does not exist')); }
+            else { resolve(); }
+        });
+    });
+};
+
+let studySpaceStatusNameExists = function(studySpaceStatusName) {
+    return new Promise((resolve, reject) => {
+        db.collection('studySpaceStatuses').findOne({_id: studySpaceStatusName}, function(err, statusName) {
+            if (err) return res.status(500).end(err);
+            if (statusName === null) { reject(new Error('provided studySpaceStatusName does not exist')); }
+            else { resolve(); }
+        });
+    });
+};
+
+let buildingNameExists = function(buildingName) {
+    return new Promise((resolve, reject) => {
+        db.collection('buildings').findOne({_id: buildingName}, function(err, building) {
+            if (err) return res.status(500).end(err);
+            if (building === null) { reject(new Error('provided buildingName does not exist')); }
+            else { resolve(); }
+        });
+    });
+};
+
+let imageIdExists = function(imageId) {
+    return new Promise((resolve, reject) => {
+        db.collection('images').findOne({_id: imageId}, function(err, image) {
+            if (err) return res.status(500).end(err);
+            if (image == null) { reject(new Error('provided imageId does not exist'));}
+            else { resolve(); }
+        });
+    });
 };
 
 
@@ -433,32 +475,17 @@ function(req, res, next) {
         new Date(),
         new Date()
     );
-    
-    // ensure studySpaceId exists
-    let studySpaceIdExists = new Promise((resolve, reject) => {
-        db.collection('studySpaces').findOne({_id: newAR.studySpaceId}, function(err, studySpace) {
-            if (err) return res.status(500).end(err);
-            if (studySpace === null) { reject(new Error('provided studySpaceId does not exist')); }
-            else { resolve(); }
-        });
-    });
-
-    // ensure studySpaceStatusName is valid
-    let studySpaceStatusNameExists = new Promise((resolve, reject) => {
-        if (isNullOrUndef(newAR.studySpaceStatusName)) {
-            resolve();
-        } else {
-            db.collection('studySpaceStatuses').findOne({_id: newAR.studySpaceStatusName}, function(err, statusName) {
-                if (err) return res.status(500).end(err);
-                if (statusName === null) { reject(new Error('provided studySpaceStatusName does not exist')); }
-                else { resolve(); }
-            });
-        }
-    });
 
     // add availability report
     // Check that all promises resolve, if one of them fails, then send error code
-    Promise.all([studySpaceIdExists, studySpaceStatusNameExists])
+
+    // ensure these criteria are met
+    verifications = [
+        studySpaceIdExists(newAR.studySpaceId),
+        studySpaceStatusNameExists(newAR.studySpaceStatusName)
+    ];
+
+    Promise.all(verifications)
     .then(() => {
         // remove all undefined properties from the newStudySpace object, ensures only provided fields in request are set by Mongo
         // from https://stackoverflow.com/a/38340374
@@ -617,56 +644,15 @@ function(req, res, next) {
 
     // Use Promises to do DB checks for validity of data
 
-    // check if the study space to update exists
-    let studySpaceExists = new Promise((resolve, reject) => {
-        studySpaces.findOne({_id: newStudySpace._id}, function(err, studySpace) {
-            if (err) return res.status(500).end(err);
-            if (studySpace === null) { reject(new Error('provided studySpaceId does not exist')); }
-            else { resolve(); }
-        });
-    });
-
-    // check if studySpaceStatus if provided, is valid
-    let studySpaceStatusName = new Promise((resolve, reject) => {
-        if (isNullOrUndef(newStudySpace.studySpaceStatusName)) {
-            resolve();
-        } else {
-            db.collection('studySpaceStatuses').findOne({_id: newStudySpace.studySpaceStatusName}, function(err, statusName) {
-                if (err) return res.status(500).end(err);
-                if (statusName === null) { reject(new Error('provided studySpaceStatusName does not exist')); }
-                else { resolve(); }
-            });
-        }
-    });
-
-    // check if building name if provided, is valid
-    let buildingNameValid = new Promise((resolve, reject) => {
-        if (isNullOrUndef(newStudySpace.buildingName)) {
-            resolve();
-        } else {
-            db.collection('buildings').findOne({_id: newStudySpace.buildingName}, function(err, building) {
-                if (err) return res.status(500).end(err);
-                if (building === null) { reject(new Error('provided buildingName does not exist')); }
-                else { resolve(); }
-            });
-        }
-    });
-
-    // check if image id is valid
-    let imageIdValid = new Promise((resolve, reject) => {
-        if (isNullOrUndef(newStudySpace.imageId)) {
-            resolve();
-        } else {
-            db.collection('images').findOne({_id: newStudySpace.imageId}, function(err, image) {
-                if (err) return res.status(500).end(err);
-                if (image == null) { reject(new Error('provided imageId does not exist'));}
-                else { resolve(); }
-            });
-        }
-    });
+    // conditions to verify before attempting to update data
+    let v = [];
+    v.push(studySpaceIdExists(newStudySpace._id));
+    if (newStudySpace.studySpaceStatusName) { v.push(studySpaceStatusNameExists(newStudySpace.studySpaceStatusName)); }
+    if (newStudySpace.buildingName) { v.push(buildingNameExists(newStudySpace.buildingName)); }
+    if (newStudySpace.imageId) { v.push(imageIdExists(newStudySpace.imageId)); }
 
     // Check that all promises resolve, if one of them fails, then send error code
-    Promise.all([studySpaceExists, studySpaceStatusName, buildingNameValid, imageIdValid])
+    Promise.all(v)
     .then(() => {
         // remove all undefined properties from the newStudySpace object, ensures only provided fields in request are set by Mongo
         // from https://stackoverflow.com/a/38340374
