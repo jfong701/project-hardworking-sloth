@@ -137,10 +137,7 @@ function buildUsersErrorMessage(errors) {
             case 'username':
             case 'firstName':
             case 'lastName':
-                errorMsg = errorMsg.concat(error.param + ' must be a String; ');
-                break;
-            case 'email':
-                errorMsg = errorMsg.concat(error.param + ' must be an email address; ');
+                errorMsg = errorMsg.concat(error.param + ' must be alphanumeric; ');
                 break;
             case 'bio':
                 errorMsg = errorMsg.concat(error.param + ' must be less than 1000 characters; ');
@@ -152,7 +149,6 @@ function buildUsersErrorMessage(errors) {
     });
     return errorMsg.slice(0, -2);
 }
-
 // generic error messages
 function buildErrorMessage(errors) {
     errorMsg = '';
@@ -191,8 +187,8 @@ app.post('/signup/', [
     body('email').optional().isEmail().trim().normalizeEmail(),
     body('bio').optional().isLength({ max: 1000 }).trim().escape(),
 ], function(req, res, next) {
-    
-    // validation
+
+    // validation - custom validation for user related
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         errorMsg = buildUsersErrorMessage(errors);
@@ -235,7 +231,8 @@ app.post('/signin/', [
     check('username').exists().isAlphanumeric(),
     check('password').exists().isLength({min: 8, max: 16})
 ], function (req, res, next) {
-    // validation
+
+    // validation - custom validation for user related
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         errorMsg = buildUsersErrorMessage(errors);
@@ -287,14 +284,14 @@ app.get('/signout/', function(req, res, next) {
 app.post('/api/studySpaces/',
 // isAuthenticated, isAdmin,
 [
-    body('name').exists().isLength({max: 200}).trim(),
-    body('description').optional().isLength({max: 500}).trim().escape(),
+    body('name').exists().isLength({min: 1, max: 200}).trim(),
+    body('description').optional().isLength({min: 1, max: 500}).trim().escape(),
     body('capacity').exists().isInt({min: 0, max: 2000}),
-    body('buildingName').exists().bail().isLength({max: 200}).trim().escape(),
-    body('studySpaceStatusName').optional().isLength({max: 100}).trim().escape(),
+    body('buildingName').exists().bail().isLength({min: 1, max: 200}).trim().escape(),
+    body('studySpaceStatusName').optional().isLength({min: 1, max: 100}).trim().escape(),
     body('polygon').exists().not().isEmpty(),
-    body('hasOutlets').optional().isLength({max: 100}).trim().escape(),
-    body('wifiQuality').optional().isLength({max: 100}).trim().escape(),
+    body('hasOutlets').optional().isLength({min: 1, max: 100}).trim().escape(),
+    body('wifiQuality').optional().isLength({min: 1, max: 100}).trim().escape(),
     body('groupFriendly').optional().isBoolean(),
     body('quietStudy').optional().isBoolean(),
     body('imageId').optional().isMongoId()
@@ -358,8 +355,8 @@ function(req, res, next) {
 app.post('/api/buildings/',
 // isAuthenticated, isAdmin,
 [
-    body('name').exists().isLength({max: 200}).trim().escape(),
-    body('description').optional().isLength({max: 500}).trim().escape()
+    body('name').exists().isLength({min: 1, max: 200}).trim().escape(),
+    body('description').optional().isLength({min: 1, max: 500}).trim().escape()
 ],
 function(req, res, next) {
 
@@ -409,7 +406,7 @@ app.get('/api/studySpaces/', function(req, res, next) {
 
 
 // get a study space by id
-app.get('/api/studySpaces/:studySpaceId', 
+app.get('/api/studySpaces/:studySpaceId/', 
 [
     param('studySpaceId').isMongoId()
 ],
@@ -469,14 +466,14 @@ app.patch('/api/studySpaces/',
 // isAuthenticated, isAdmin,
 [
     body('_id').exists().isMongoId(),
-    body('name').optional().isLength({max: 200}).trim(),
-    body('description').optional().isLength({max: 500}).trim().escape(),
+    body('name').optional().isLength({min: 1, max: 200}).trim(),
+    body('description').optional().isLength({min: 1, max: 500}).trim().escape(),
     body('capacity').optional().isInt({min: 0, max: 2000}),
-    body('buildingName').optional().bail().isLength({max: 200}).trim().escape(),
-    body('studySpaceStatusName').optional().isLength({max: 100}).trim().escape(),
+    body('buildingName').optional().bail().isLength({min: 1, max: 200}).trim().escape(),
+    body('studySpaceStatusName').optional().isLength({min: 1, max: 100}).trim().escape(),
     body('polygon').optional().not().isEmpty(),
-    body('hasOutlets').optional().isLength({max: 100}).trim().escape(),
-    body('wifiQuality').optional().isLength({max: 100}).trim().escape(),
+    body('hasOutlets').optional().isLength({min: 1, max: 100}).trim().escape(),
+    body('wifiQuality').optional().isLength({min: 1, max: 100}).trim().escape(),
     body('groupFriendly').optional().isBoolean(),
     body('quietStudy').optional().isBoolean(),
     body('imageId').optional().isMongoId()
@@ -514,7 +511,7 @@ function(req, res, next) {
     // check if the study space to update exists
     let studySpaceExists = new Promise((resolve, reject) => {
         studySpaces.findOne({_id: newStudySpace._id}, function(err, studySpace) {
-            if (studySpace === null) { reject('provided studySpace does not exist'); }
+            if (studySpace === null) { reject(new Error('provided studySpace does not exist')); }
             else { resolve(); }
         });
     });
@@ -525,7 +522,7 @@ function(req, res, next) {
             resolve();
         } else {
             db.collection('buildings').findOne({_id: newStudySpace.buildingName}, function(err, building) {
-                if (building === null) { reject('provided building does not exist'); }
+                if (building === null) { reject(new Error('provided building does not exist')); }
                 else { resolve(); }
             });
         }
@@ -537,7 +534,7 @@ function(req, res, next) {
             resolve();
         } else {
             db.collection('images').findOne({_id: newStudySpace.imageId}, function(err, image) {
-                if (image == null) { reject('provided imageId does not exist');}
+                if (image == null) { reject(new Error('provided imageId does not exist'));}
                 else { resolve(); }
             });
         }
@@ -551,14 +548,14 @@ function(req, res, next) {
         Object.keys(newStudySpace).forEach(key => newStudySpace[key] === undefined && delete newStudySpace[key]);
 
         // update study space record
-        studySpaces('studySpaces').updateOne({_id: newStudySpace._id}, { $set: newStudySpace }, function(err, result) {
+        studySpaces.updateOne({_id: newStudySpace._id}, { $set: newStudySpace }, function(err, result) {
             if(err) return res.status(500).end(err);
             return res.json(newStudySpace);
         });
     })
-    .catch((rejectReason) => {
+    .catch(rejectReason => {
         // any of the promises rejected, then data is invalid, send a 400 response with the reason
-        return res.status(400).end(rejectReason);
+        return res.status(400).end(rejectReason.message);
     });
 
 });
