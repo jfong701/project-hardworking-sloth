@@ -4,30 +4,20 @@ const path = require('path');
 const mongo = require('mongodb');
 const assert = require('assert');
 const express = require('express');
+const cors = require('cors');
 const app = express();
 const { body, check, param, validationResult } = require('express-validator');
+const cookie = require('cookie');
+const session = require('express-session');
+const bodyParser = require('body-parser');
 
 // to retrieve important variables from a .env file (keeping DB credentials and others out of source code)
 require('dotenv').config();
 
-const bodyParser = require('body-parser');
 app.use(bodyParser.json());
-
-const cookie = require('cookie');
-const session = require('express-session');
 
 // time delay used for limiting availability reports, and filtering seeing only reports made for this study space
 const minutesDelay = 5;
-
-app.use(session({
-    secret: `${process.env.SESSION_SECRET}`,
-    resave: false,
-    saveUninitialized: true,
-    cookie: {
-        // secure: true, // only allow cookie over HTTPS connection
-        sameSite: 'strict' // restrict cookie from being sent out of this site
-    } 
-}));
 
 // mongoDB testing connection on MongoDB Atlas
 const dbName = `${process.env.DB_NAME}`;
@@ -39,7 +29,23 @@ mongo.MongoClient.connect(uri, {useUnifiedTopology: true}, function(err, client)
     db = client.db(dbName);
 });
 
-app.use(express.static('static'));
+// express settings
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, function(err) {
+    if (err) console.log(err);
+    else console.log("HTTP server on http://localhost:%s", PORT);
+});
+
+app.use(session({
+    secret: `${process.env.SESSION_SECRET}`,
+    resave: false,
+    saveUninitialized: true,
+    cookie: {
+        // secure: true, // only allow cookie over HTTPS connection
+        sameSite: 'strict' // restrict cookie from being sent out of this site
+    } 
+}));
 
 app.use(function (req, res, next){
     let username = (req.session.username)? req.session.username : '';
@@ -55,6 +61,21 @@ app.use(function (req, res, next){
     next();
     console.log("HTTP request", req.method, req.url, req.body);
 });
+
+// use cors package to allow cross origin request from Vue frontend
+const whiteList = ['http://localhost:8080'];
+const corsOptions = {
+    origin: function(origin, callback) {
+        console.log('this is the origin', origin);
+        if (whiteList.indexOf(origin) !== -1 || !origin) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    }
+};
+app.use(cors(corsOptions));
+app.use(express.static('static'));
 
 
 /* ***** Data types *****
@@ -599,7 +620,7 @@ function(req, res, next) {
 // get the availability reports made for a study space in the last X minutes
 app.get('/api/studySpaces/:studySpaceId/availabilityReports/',
 [
-    param('studySpaceId').isMongoId(),
+    param('studySpaceId').isMongoId()
 ],
 function(req, res, next) {
     // validation
@@ -623,9 +644,10 @@ function(req, res, next) {
     })
     .catch((rejectReason) => {
         return res.status(400).end(rejectReason.message);
-    })
+    });
 });
 
+// TODO: given a point location in geoJSON, get the closest study space
 
 // UPDATE ---------------------------------------------------------------------
 
@@ -771,17 +793,4 @@ function(req, res, next) {
 
         // TODO: delete availability reports of this space
     });
-});
-
-// const http = require('http');
-const PORT = process.env.PORT || 3000;
-
-// http.createServer(app).listen(PORT, function (err) {
-//     if (err) console.log(err);
-//     else console.log("HTTP server on http://localhost:%s", PORT);
-// });
-
-app.listen(PORT, function(err) {
-    if (err) console.log(err);
-    else console.log("HTTP server on http://localhost:%s", PORT);
 });
