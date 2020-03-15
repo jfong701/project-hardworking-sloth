@@ -39,8 +39,18 @@ mongo.MongoClient.connect(uri, {useUnifiedTopology: true}, function(err, client)
 app.use(express.static('static'));
 
 app.use(function (req, res, next){
-    console.log("HTTP request", req.method, req.url, req.body);
+    let username = (req.session.username)? req.session.username : '';
+    res.setHeader('Set-Cookie', cookie.serialize('username', username, {
+          /* httpOnly flag not set, because the front end needs access to the username
+          username also is not secret information */
+
+          // secure: true, /* only attach cookies on HTTPS connection*/
+          sameSite: 'strict', /* restrict cookie from being sent out of this site */
+          path : '/', 
+          maxAge: 60 * 60 * 24 * 7 // 1 week in number of seconds
+    }));
     next();
+    console.log("HTTP request", req.method, req.url, req.body);
 });
 
 
@@ -121,6 +131,17 @@ class StudySpace {
         this.groupFriendly = groupFriendly;
         this.quietStudy = quietStudy;
         this.imageId = imageId;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
+}
+
+class AvailabilityReport {
+    constructor(_id, username, studySpaceId, studySpaceStatusName, createdAt, updatedAt) {
+        this._id = _id;
+        this.username = username;
+        this.studySpaceId = studySpaceId;
+        this.studySpaceStatusName = studySpaceStatusName;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -254,7 +275,7 @@ app.post('/signin/', [
             if (!valid) return res.status(401).end('access denied');
 
             // start session
-            req.session.user = user;
+            req.session.username = user._id;
             res.setHeader('Set-Cookie', cookie.serialize('username', user._id, {
                 // secure: true, /* only attach cookies on HTTPS connection*/
                 sameSite: 'strict', /* restrict cookie from being sent out of this site */
@@ -284,7 +305,7 @@ app.get('/signout/', function(req, res, next) {
 
 // create a study space
 app.post('/api/studySpaces/',
-// isAuthenticated, isAdmin,
+isAuthenticated, isAdmin,
 [
     body('name').exists().isLength({min: 1, max: 200}).trim(),
     body('description').optional().isLength({min: 1, max: 500}).trim().escape(),
@@ -358,7 +379,7 @@ function(req, res, next) {
 
 // create a building
 app.post('/api/buildings/',
-// isAuthenticated, isAdmin,
+isAuthenticated, isAdmin,
 [
     body('name').exists().isLength({min: 1, max: 200}).trim().escape(),
     body('description').optional().isLength({min: 1, max: 500}).trim().escape()
@@ -386,6 +407,89 @@ function(req, res, next) {
             return res.json(newBuilding);
         });
     });
+});
+
+
+// create availability report for a study space
+app.post('/api/studySpaces/:studySpaceId/availabilityReports/',
+isAuthenticated,
+[
+    param('studySpaceId').isMongoId(),
+],
+function(req, res, next) {
+    // validation
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        errorMsg = buildErrorMessage(errors);
+        return res.status(400).end(errorMsg);
+    }
+    console.log('req.session.username', req.session.username);
+
+    let newAR = new AvailabilityReport(
+        undefined,
+        req.session.username,
+        new mongo.ObjectID(req.params.studySpaceId),
+        req.body.studySpaceStatusName,
+        new Date(),
+        new Date()
+    );
+    
+    // ensure studySpaceId exists
+    let studySpaceIdExists = new Promise((resolve, reject) => {
+        db.collection('studySpaces').findOne({_id: newAR.studySpaceId}, function(err, studySpace) {
+            if (err) return res.status(500).end(err);
+            if (studySpace === null) { reject(new Error('provided studySpaceId does not exist')); }
+            else { resolve(); }
+        });
+    });
+
+    // ensure studySpaceStatusName is valid
+    let studySpaceStatusNameExists = new Promise((resolve, reject) => {
+        if (isNullOrUndef(newAR.studySpaceStatusName)) {
+            resolve();
+        } else {
+            db.collection('studySpaceStatuses').findOne({_id: newAR.studySpaceStatusName}, function(err, statusName) {
+                if (err) return res.status(500).end(err);
+                if (statusName === null) { reject(new Error('provided studySpaceStatusName does not exist')); }
+                else { resolve(); }
+            });
+        }
+    });
+
+    // add availability report
+    // Check that all promises resolve, if one of them fails, then send error code
+    Promise.all([studySpaceIdExists, studySpaceStatusNameExists])
+    .then(() => {
+        // remove all undefined properties from the newStudySpace object, ensures only provided fields in request are set by Mongo
+        // from https://stackoverflow.com/a/38340374
+        Object.keys(newAR).forEach(key => newAR[key] === undefined && delete newAR[key]);
+
+        // ensure the user has not made a report for this studySpace in the last X minutes
+        const minutesDelay = 5;
+
+        let availabilityReports = db.collection('availabilityReports');
+        // get the one latest availabiltiy report by this user on this study space
+        availabilityReports.find({username: newAR.username, studySpaceId: newAR.studySpaceId}).sort({createdAt: -1}).limit(1).next(function(err, recentReport) {
+            if (err) return res.status(500).end(err);
+
+            // only add report if no recent reports found or the most recent report was more than X minutes ago.
+            if (recentReport === null || ((new Date() - recentReport.createdAt)/(60*1000) > minutesDelay)) {
+                availabilityReports.insertOne(newAR, function(err, result) {
+                    if (err) return res.status(500).end(err);
+                    return res.json(newAR);
+                });
+            } else {
+                // compute time since last report, and tell them when they can report again
+                let minutes = Math.ceil(minutesDelay - (new Date() - recentReport.createdAt)/(60*1000));
+                return res.status(409).end('You have already added an availability report. Please wait ' + minutes + ' minutes to add another report to this study space');
+            }
+        });
+    })
+    .catch(rejectReason => {
+        // any of the promises rejected, then data is invalid, send a 400 response with the reason
+        return res.status(400).end(rejectReason.message);
+    });
+
 });
 
 
@@ -468,7 +572,7 @@ function(req, res, next) {
 
 // update a study space
 app.patch('/api/studySpaces/',
-// isAuthenticated, isAdmin,
+isAuthenticated, isAdmin,
 [
     body('_id').exists().isMongoId(),
     body('name').optional().isLength({min: 1, max: 200}).trim(),
@@ -517,7 +621,7 @@ function(req, res, next) {
     let studySpaceExists = new Promise((resolve, reject) => {
         studySpaces.findOne({_id: newStudySpace._id}, function(err, studySpace) {
             if (err) return res.status(500).end(err);
-            if (studySpace === null) { reject(new Error('provided studySpace does not exist')); }
+            if (studySpace === null) { reject(new Error('provided studySpaceId does not exist')); }
             else { resolve(); }
         });
     });
@@ -527,7 +631,7 @@ function(req, res, next) {
         if (isNullOrUndef(newStudySpace.studySpaceStatusName)) {
             resolve();
         } else {
-            db.collection('buildings').findOne({_id: newStudySpace.studySpaceStatusName}, function(err, statusName) {
+            db.collection('studySpaceStatuses').findOne({_id: newStudySpace.studySpaceStatusName}, function(err, statusName) {
                 if (err) return res.status(500).end(err);
                 if (statusName === null) { reject(new Error('provided studySpaceStatusName does not exist')); }
                 else { resolve(); }
@@ -587,7 +691,7 @@ function(req, res, next) {
 
 // delete a building
 app.delete('/api/buildings/:buildingId/',
-// isAuthenticated, isAdmin,
+isAuthenticated, isAdmin,
 [
     param('buildingId').exists().escape()
 ],
@@ -615,7 +719,7 @@ function(req, res, next) {
 
 // delete a study space
 app.delete('/api/studySpaces/:studySpaceId/', 
-// isAuthenticated, isAdmin,
+isAuthenticated, isAdmin,
 [
     param('studySpaceId').isMongoId()
 ],
