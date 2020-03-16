@@ -1,24 +1,26 @@
 <!DOCTYPE html>
 <html>
 <head>
-
+  <meta charset="utf-8">
+  <title>Study Room Finder - Sign in</title>
 </head>
 <body>
     <header>
-        <!-- TODO: Add any missing header elements -->
         <a href="/" id="title">Study Room Finder</a>
     </header>
     <p id="err_msg"></p>
-    <!-- TODO: Edit required information from user to match db -->
         <form id="signup_form">
-            <p>Enter your username <input type="text" name="username" required/></p></p>
-            <p>Enter your password <input type="password" name="password" id="password" required></p>
-            <input type="submit" id="signin" name="action" value="Submit">
+          <div class="sigin-info">
+            <p>Enter your username</p>
+            <input type="text" name="username" required/>
+            <p>Enter your password</p>
+            <input type="password" name="password" id="password" required>
+          </div>
+          <input type="submit" id="signin" name="action" value="Submit">
         </form>
     <footer>
       <a href='/credits.html'>credits</a>
     </footer>
-    <!-- TODO: Make sure app.js and signin.js are in the given directories -->
     <script type="text/javascript" src="./js/api.js"></script>
     <script type="text/javascript" src="./js/signin.js"></script>
 </body>
