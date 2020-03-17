@@ -6,6 +6,7 @@ let api = (function(){
 
     let userListeners = [];
     let errorListeners = [];
+    // TODO: Array for building and/study space listeners
 
     let getUsername = function(){
         return document.cookie.replace(/(?:(?:^|.*;\s*)username\s*\=\s*([^;]*).*$)|^.*$/, "$1");
@@ -22,6 +23,11 @@ let api = (function(){
             handler(err);
         });
     }
+
+    // TODO: Function that notifies building listeners
+
+    // TODO: Function that notifies study space listeners
+
     /* ***** Data types *****
         building objects:
             - (String) _id (the name of the building)   (PK)
@@ -90,10 +96,10 @@ let api = (function(){
       {
         username,
         password,
-        firstName,
-        lastName,
-        email,
-        bio
+        firstName: firstName === '' ? undefined : firstName,
+        lastName: lastName ===  '' ? undefined : lastName,
+        email: email === '' ? undefined : email,
+        bio: bio === '' ? undefined : bio
       }, function(err, res){
         if (err) return notifyErrorListeners(err);
         notifyUserListeners(getUsername());
@@ -107,6 +113,16 @@ let api = (function(){
       });
     }
 
+    module.getBuildingStudySpaces = function(buildingName) {
+      send("GET", '/api/buildings/:buildingName/studySpaces/', {buildingName},
+      function(err, res){
+        if(err) return notifyErrorListeners(err);
+        // TODO: Function to notify building listeners
+      });
+    }
+
+    // TODO: Other functions needed for searches
+    
     module.onError = function(listener){
         errorListeners.push(listener);
     };
