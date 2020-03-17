@@ -27,7 +27,20 @@ mongo.MongoClient.connect(uri, {useUnifiedTopology: true}, function(err, client)
     assert.equal(null, err);
     console.log('Successfully connected to Mongo server');
     db = client.db(dbName);
+
+    geoIndexForStudySpace(db);
 });
+
+const geoIndexForStudySpace = function(db, callback) {
+    db.collection('studySpaces').createIndex(
+        {"polygon": "2dsphere"}, //field to add index
+        null, // options
+        function (err, result) { // callback
+            // console.log(result);
+            // callback();
+        }
+    );
+};
 
 // express settings
 const PORT = process.env.PORT || 3000;
@@ -246,8 +259,8 @@ let studySpaceIdExistsInBuilding = function(studySpaceId, buildingName) {
         .catch((rejectReason) => {
             reject(new Error(rejectReason.message));
         });
-    })
-}
+    });
+};
 
 let studySpaceStatusNameExists = function(studySpaceStatusName) {
     return new Promise((resolve, reject) => {
@@ -410,6 +423,8 @@ function(req, res, next) {
         return res.status(400).end(errorMsg);
     }
 
+    let imageId = req.body.imageId === undefined ? undefined : req.body.imageId;
+
     let newStudySpace = new StudySpace(
         undefined,
         req.body.name,
@@ -422,7 +437,7 @@ function(req, res, next) {
         req.body.wifiQuality,
         req.body.groupFriendly,
         req.body.quietStudy,
-        req.body.imageId,
+        imageId,
         new Date(),
         new Date()
     );
@@ -674,7 +689,47 @@ function(req, res, next) {
     });
 });
 
-// TODO: given a point location in geoJSON, get the closest study space
+// given a point location in geoJSON, get the closest study space
+// TODO: return the point only if the study space is available
+app.get('/api/closestStudySpace/',
+[
+    body('point').exists().not().isEmpty()
+],
+function(req, res, next) {
+    // validation
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        errorMsg = buildErrorMessage(errors);
+        return res.status(400).end(errorMsg);
+    }
+
+    let buildingName = req.params.buildingName;
+    let studySpaceId = new mongo.ObjectID(req.params.studySpaceId);
+
+    // the geoJSON point
+    let point = req.body.point;
+    
+    // ensure point is an object, and fields are of correct type
+    if (typeof(point) !== 'object') {return res.status(400).end('point must be an object'); }
+    if (point.type !== 'Point') {return res.status(400).end('point must be of type "Point"'); }
+    if (point.coordinates.length !== 2) {return res.status(400).end('coordinates must be an array of length 2 [long, lat]'); }
+    if (point.coordinates[0] <= -180 || point.coordinates[0] >= 180) {return res.status(400).end('longitude must be between -180 to 180'); }
+    if (point.coordinates[1] <= -90 || point.coordinates[1] >= 90) {return res.status(400).end('latitude must be between -90 to 90'); }
+
+    // check each study space, return the one with the closest coordinates
+    db.collection('studySpaces').findOne({
+        polygon: {
+            $nearSphere: {
+                $geometry: point,
+                // $minDistance: 1,
+                // $maxDistance: 1000000
+            }
+        }
+    }, function(err, studySpace) {
+        if (err) return res.status(500).end(err.message);
+        return res.json(studySpace);
+    });
+});
 
 // UPDATE ---------------------------------------------------------------------
 
