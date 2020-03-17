@@ -76,10 +76,10 @@ app.use(function (req, res, next){
 });
 
 // use cors package to allow cross origin request from Vue frontend
-const whiteList = ['http://localhost:8080'];
+const whiteList = ['http://localhost:3000', 'http://localhost:8080'];
 const corsOptions = {
     origin: function(origin, callback) {
-        console.log('this is the origin', origin);
+        // console.log('this is the origin', origin);
         if (whiteList.indexOf(origin) !== -1 || !origin) {
             callback(null, true);
         } else {
