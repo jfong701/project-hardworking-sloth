@@ -27,7 +27,20 @@ mongo.MongoClient.connect(uri, {useUnifiedTopology: true}, function(err, client)
     assert.equal(null, err);
     console.log('Successfully connected to Mongo server');
     db = client.db(dbName);
+
+    geoIndexForStudySpace(db);
 });
+
+const geoIndexForStudySpace = function(db, callback) {
+    db.collection('studySpaces').createIndex(
+        {"polygon": "2dsphere"}, //field to add index
+        null, // options
+        function (err, result) { // callback
+            // console.log(result);
+            // callback();
+        }
+    );
+};
 
 // express settings
 const PORT = process.env.PORT || 3000;
@@ -63,10 +76,10 @@ app.use(function (req, res, next){
 });
 
 // use cors package to allow cross origin request from Vue frontend
-const whiteList = ['http://localhost:8080'];
+const whiteList = ['http://localhost:3000', 'http://localhost:8080'];
 const corsOptions = {
     origin: function(origin, callback) {
-        console.log('this is the origin', origin);
+        // console.log('this is the origin', origin);
         if (whiteList.indexOf(origin) !== -1 || !origin) {
             callback(null, true);
         } else {
@@ -216,9 +229,10 @@ let isAuthenticated = function(req, res, next) {
 
 let isAdmin = function(req, res, next) {
     db.collection('users').findOne({_id: req.session.username, isAdmin: true}, function(err, result) {
-        if (err) return res.status(401).end('access denied, user is not admin');
+        if (err) return res.status(500).end(err);
+        if (result === null) return res.status(401).end('access denied, user is not admin');
+        next();
     });
-    next();
 };
 
 // common DB checks
@@ -229,6 +243,21 @@ let studySpaceIdExists = function(studySpaceId) {
             if (err) return res.status(500).end(err);
             if (studySpace === null) { reject(new Error('provided studySpaceId does not exist')); }
             else { resolve(); }
+        });
+    });
+};
+
+let studySpaceIdExistsInBuilding = function(studySpaceId, buildingName) {
+    return new Promise((resolve, reject) => {
+        buildingNameExists(buildingName).then(() => {
+            db.collection('studySpaces').findOne({_id: studySpaceId, buildingName: buildingName}, function(err, studySpace) {
+                if (err) return res.status(500).end(err);
+                if (studySpace === null) { reject(new Error('provided studySpaceId does not exist in this building')); }
+                else { resolve(); }
+            });
+        })
+        .catch((rejectReason) => {
+            reject(new Error(rejectReason.message));
         });
     });
 };
@@ -372,14 +401,13 @@ app.get('/signout/', function(req, res, next) {
 
 
 // create a study space
-app.post('/api/studySpaces/',
+app.post('/api/buildings/:buildingName/studySpaces/',
 isAuthenticated, isAdmin,
 [
     body('name').exists().isLength({min: 1, max: 200}).trim(),
     body('description').optional().isLength({min: 1, max: 500}).trim().escape(),
     body('capacity').exists().isInt({min: 0, max: 2000}),
-    body('buildingName').exists().bail().isLength({min: 1, max: 200}).trim().escape(),
-    body('studySpaceStatusName').optional().isLength({min: 1, max: 100}).trim().escape(),
+    param('buildingName').exists().isLength({min: 1, max: 200}).trim().escape(),
     body('polygon').exists().not().isEmpty(),
     body('hasOutlets').optional().isLength({min: 1, max: 100}).trim().escape(),
     body('wifiQuality').optional().isLength({min: 1, max: 100}).trim().escape(),
@@ -395,19 +423,21 @@ function(req, res, next) {
         return res.status(400).end(errorMsg);
     }
 
+    let imageId = req.body.imageId === undefined ? undefined : req.body.imageId;
+
     let newStudySpace = new StudySpace(
         undefined,
         req.body.name,
         req.body.description,
         req.body.capacity,
-        req.body.buildingName,
+        req.params.buildingName,
         req.body.polygon,
-        isNullOrUndef(req.body.studySpaceStatusName) ? 'Available' : req.body.studySpaceStatusName,
+        'Available',
         req.body.hasOutlets,
         req.body.wifiQuality,
         req.body.groupFriendly,
         req.body.quietStudy,
-        req.body.imageId,
+        imageId,
         new Date(),
         new Date()
     );
@@ -417,12 +447,12 @@ function(req, res, next) {
         if (err) return res.status(500).end(err);
         if (building === null) { return res.status(400).end('provided buildingName does not exist'); }
         
-        // TODO: ensure studySpaceStatusName is valid
+        // ensure studySpaceStatusName is valid
         db.collection('studySpaceStatuses').findOne({_id: newStudySpace.studySpaceStatusName}, function(err, statusName) {
             if (err) return res.status(500).end(err);
             if (statusName === null) { return res.status(400).end('provided studySpaceStatusName does not exist'); }
             
-            // TODO: ensure imageId, if provided, is valid
+            // ensure imageId, if provided, is valid
             if (isNullOrUndef(newStudySpace.imageId)) {
                 // insert study space
                 db.collection('studySpaces').insertOne(newStudySpace, function(err, result) {
@@ -479,9 +509,10 @@ function(req, res, next) {
 
 
 // create availability report for a study space
-app.post('/api/studySpaces/:studySpaceId/availabilityReports/',
+app.post('/api/buildings/:buildingName/studySpaces/:studySpaceId/availabilityReports/',
 isAuthenticated,
 [
+    param('buildingName').isLength({min: 1, max: 200}).trim().escape(),
     param('studySpaceId').isMongoId(),
     body('studySpaceStatusName').exists().isLength({min: 1, max: 100}).trim().escape(),   
 ],
@@ -492,7 +523,6 @@ function(req, res, next) {
         errorMsg = buildErrorMessage(errors);
         return res.status(400).end(errorMsg);
     }
-    console.log('req.session.username', req.session.username);
 
     let newAR = new AvailabilityReport(
         undefined,
@@ -509,6 +539,7 @@ function(req, res, next) {
     // ensure these criteria are met
     verifications = [
         studySpaceIdExists(newAR.studySpaceId),
+        studySpaceIdExistsInBuilding(newAR.studySpaceId, req.params.buildingName),
         studySpaceStatusNameExists(newAR.studySpaceStatusName)
     ];
 
@@ -565,9 +596,37 @@ app.get('/api/studySpaces/', function(req, res, next) {
 });
 
 
-// get a study space by id
-app.get('/api/studySpaces/:studySpaceId/', 
+// get all study spaces in a building
+app.get('/api/buildings/:buildingName/studySpaces/',
 [
+    param('buildingName').isLength({min: 1, max: 200}).trim().escape(),
+],
+function(req, res, next) {
+
+    // validation
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        errorMsg = buildErrorMessage(errors);
+        return res.status(400).end(errorMsg);
+    }
+
+    let buildingName = req.params.buildingName;
+
+    buildingNameExists(buildingName).then(() => {
+        db.collection('studySpaces').find({buildingName: buildingName}).toArray(function(err, studySpaces) {
+            if (err) return res.status(500).end(err);
+            return res.json(studySpaces);
+        });
+    })
+    .catch((rejectReason) => {
+        return res.status(400).end(rejectReason.message);
+    });
+});
+
+// get a study space by buildingName, and studyspace id
+app.get('/api/buildings/:buildingName/studySpaces/:studySpaceId/', 
+[
+    param('buildingName').isLength({min: 1, max: 200}).trim().escape(),
     param('studySpaceId').isMongoId()
 ],
 function(req, res, next) {
@@ -579,47 +638,25 @@ function(req, res, next) {
         return res.status(400).end(errorMsg);
     }
 
+    let buildingName = req.params.buildingName;
     let studySpaceId = mongo.ObjectID(req.params.studySpaceId);
-    db.collection('studySpaces').findOne({_id: studySpaceId}, function(err, studySpace) {
-        if (err) return res.status(500).end(err);
-        if (studySpace === null) return res.status(404).end('Provided studySpace._id does not exist');
-
-        return res.json(studySpace);
-    });
-});
-
-
-// get all study spaces in a building
-app.get('/api/buildings/:buildingId/studySpaces/',
-[
-    param('buildingId').trim().escape(),
-],
-function(req, res, next) {
-
-    // validation
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        errorMsg = buildErrorMessage(errors);
-        return res.status(400).end(errorMsg);
-    }
-
-    let buildingId = req.params.buildingId;
-
-    db.collection('buildings').findOne({_id: buildingId}, function(err, building) {
-        if (err) return res.status(500).end(err);
-        if (building === null) return res.status(404).end('Provided building._id does not exist');
-
-        db.collection('studySpaces').find({buildingName: buildingId}).toArray(function(err, studySpaces) {
+    
+    buildingNameExists(buildingName).then(() => {
+        db.collection('studySpaces').findOne({_id: studySpaceId, buildingName: buildingName}, function(err, studySpace) {
             if (err) return res.status(500).end(err);
-            return res.json(studySpaces);
+            if (studySpace === null) return res.status(404).end('Provided studySpace id does not exist');
+            return res.json(studySpace);
         });
-
+    })
+    .catch((rejectReason) => {
+        return res.status(400).end(rejectReason.message);
     });
 });
 
 // get the availability reports made for a study space in the last X minutes
-app.get('/api/studySpaces/:studySpaceId/availabilityReports/',
+app.get('/api/buildings/:buildingName/studySpaces/:studySpaceId/availabilityReports/',
 [
+    param('buildingName').isLength({min: 1, max: 200}).trim().escape(),
     param('studySpaceId').isMongoId()
 ],
 function(req, res, next) {
@@ -630,10 +667,15 @@ function(req, res, next) {
         return res.status(400).end(errorMsg);
     }
 
+    let buildingName = req.params.buildingName;
     let studySpaceId = new mongo.ObjectID(req.params.studySpaceId);
-    console.log('study space id', studySpaceId);
+    
+    let verifications = [
+        buildingNameExists(buildingName),
+        studySpaceIdExists(studySpaceId)
+    ];
 
-    studySpaceIdExists(studySpaceId).then(() => {
+    Promise.all(verifications).then(() => {
         // the time minutesDelay ago
         XminsAgo = new Date(Date.now() - minutesDelay*60*1000);
 
@@ -647,20 +689,61 @@ function(req, res, next) {
     });
 });
 
-// TODO: given a point location in geoJSON, get the closest study space
+// given a point location in geoJSON, get the closest study space
+// TODO: return the point only if the study space is available
+app.get('/api/closestStudySpace/',
+[
+    body('point').exists().not().isEmpty()
+],
+function(req, res, next) {
+    // validation
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        errorMsg = buildErrorMessage(errors);
+        return res.status(400).end(errorMsg);
+    }
+
+    let buildingName = req.params.buildingName;
+    let studySpaceId = new mongo.ObjectID(req.params.studySpaceId);
+
+    // the geoJSON point
+    let point = req.body.point;
+    
+    // ensure point is an object, and fields are of correct type
+    if (typeof(point) !== 'object') {return res.status(400).end('point must be an object'); }
+    if (point.type !== 'Point') {return res.status(400).end('point must be of type "Point"'); }
+    if (point.coordinates.length !== 2) {return res.status(400).end('coordinates must be an array of length 2 [long, lat]'); }
+    if (point.coordinates[0] <= -180 || point.coordinates[0] >= 180) {return res.status(400).end('longitude must be between -180 to 180'); }
+    if (point.coordinates[1] <= -90 || point.coordinates[1] >= 90) {return res.status(400).end('latitude must be between -90 to 90'); }
+
+    // check each study space, return the one with the closest coordinates
+    db.collection('studySpaces').findOne({
+        polygon: {
+            $nearSphere: {
+                $geometry: point,
+                // $minDistance: 1,
+                // $maxDistance: 1000000
+            }
+        }
+    }, function(err, studySpace) {
+        if (err) return res.status(500).end(err.message);
+        return res.json(studySpace);
+    });
+});
 
 // UPDATE ---------------------------------------------------------------------
 
 
 // update a study space
-app.patch('/api/studySpaces/',
+app.patch('/api/buildings/:buildingName/studySpaces/:studySpaceId/',
 isAuthenticated, isAdmin,
 [
-    body('_id').exists().isMongoId(),
+    param('studySpaceId').isMongoId(), // current id
+    param('buildingName').isLength({min: 1, max: 200}).trim().escape(), //current buildingName
     body('name').optional().isLength({min: 1, max: 200}).trim(),
     body('description').optional().isLength({min: 1, max: 500}).trim().escape(),
     body('capacity').optional().isInt({min: 0, max: 2000}),
-    body('buildingName').optional().bail().isLength({min: 1, max: 200}).trim().escape(),
+    body('buildingName').optional().isLength({min: 1, max: 200}).trim().escape(), // optional updated buildingName
     body('studySpaceStatusName').optional().isLength({min: 1, max: 100}).trim().escape(),
     body('polygon').optional().not().isEmpty(),
     body('hasOutlets').optional().isLength({min: 1, max: 100}).trim().escape(),
@@ -678,19 +761,23 @@ function(req, res, next) {
         return res.status(400).end(errorMsg);
     }
 
+    // because imageId is turned into mongoId,
+    // but is also optional, set it here, and then add to studySpace
+    let imageId = req.body.imageId === undefined ? undefined : new mongo.ObjectID(req.body.imageId); 
+
     let newStudySpace = new StudySpace(
-        new mongo.ObjectID(req.body._id),
+        new mongo.ObjectID(req.params.studySpaceId),
         req.body.name,
         req.body.description,
         req.body.capacity,
-        req.body.buildingName,
+        req.body.buildingName,  // buildingName passed in body is what to update to
         req.body.polygon,
         req.body.studySpaceStatusName,
         req.body.hasOutlets,
         req.body.wifiQuality,
         req.body.groupFriendly,
         req.body.quietStudy,
-        new mongo.ObjectID(req.body.imageId),
+        imageId,
         undefined,
         new Date() // sets updatedAt to current time
     );
@@ -731,10 +818,10 @@ function(req, res, next) {
 
 
 // delete a building
-app.delete('/api/buildings/:buildingId/',
+app.delete('/api/buildings/:buildingName/',
 isAuthenticated, isAdmin,
 [
-    param('buildingId').exists().escape()
+    param('buildingName').isLength({min: 1, max: 200}).trim().escape()
 ],
 function(req, res, next) {
 
@@ -746,9 +833,10 @@ function(req, res, next) {
     }
 
     let buildings = db.collection('buildings');
-    buildings.findOne({_id: req.params.buildingId}, function(err, building) {
+    
+    buildings.findOne({_id: req.params.buildingName}, function(err, building) {
         if (err) return res.status(500).end(err);
-        if (!building) return res.status(404).end('Cannot delete building. Provided buildingId: does not exist');
+        if (!building) return res.status(404).end('Cannot delete building. Provided buildingName: does not exist');
         
         buildings.deleteOne({_id: building._id}, function(err) {
             if (err) return res.status(500).end(err);
@@ -759,10 +847,11 @@ function(req, res, next) {
 
 
 // delete a study space
-app.delete('/api/studySpaces/:studySpaceId/', 
+app.delete('/api/buildings/:buildingName/studySpaces/:studySpaceId/', 
 isAuthenticated, isAdmin,
 [
-    param('studySpaceId').isMongoId()
+    param('studySpaceId').isMongoId(),
+    param('buildingName').isLength({min: 1, max: 200}).trim().escape()
 ],
 function(req, res, next) {
     // validation
@@ -775,9 +864,10 @@ function(req, res, next) {
     // declare variables for convenience
     let studySpaces = db.collection('studySpaces');
     let studySpaceId = new mongo.ObjectID(req.params.studySpaceId);
+    let buildingName = req.params.buildingName;
 
     // find the study space, if it exists:
-    studySpaces.findOne({_id: studySpaceId}, function(err, studySpace){
+    studySpaces.findOne({_id: studySpaceId, buildingName: buildingName}, function(err, studySpace){
         if (err) return res.status(500).end(err);
         if (!studySpace) return res.status(404).end('Cannot delete studySpace. Provided studySpaceId does not exist');
 
