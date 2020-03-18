@@ -229,7 +229,7 @@ let isAuthenticated = function(req, res, next) {
 
 let isAdmin = function(req, res, next) {
     db.collection('users').findOne({_id: req.session.username, isAdmin: true}, function(err, result) {
-        if (err) return res.status(500).end(err);
+        if (err) return res.status(500).end(err.message);
         if (result === null) return res.status(401).end('access denied, user is not admin');
         next();
     });
@@ -240,7 +240,7 @@ let isAdmin = function(req, res, next) {
 let studySpaceIdExists = function(studySpaceId) {
     return new Promise((resolve, reject) => {
         db.collection('studySpaces').findOne({_id: studySpaceId}, function(err, studySpace) {
-            if (err) return res.status(500).end(err);
+            if (err) return res.status(500).end(err.message);
             if (studySpace === null) { reject(new Error('provided studySpaceId does not exist')); }
             else { resolve(); }
         });
@@ -251,7 +251,7 @@ let studySpaceIdExistsInBuilding = function(buildingName, studySpaceId) {
     return new Promise((resolve, reject) => {
         buildingNameExists(buildingName).then(() => {
             db.collection('studySpaces').findOne({_id: studySpaceId, buildingName: buildingName}, function(err, studySpace) {
-                if (err) return res.status(500).end(err);
+                if (err) return res.status(500).end(err.message);
                 if (studySpace === null) { reject(new Error('provided studySpaceId does not exist in this building')); }
                 else { resolve(); }
             });
@@ -265,7 +265,7 @@ let studySpaceIdExistsInBuilding = function(buildingName, studySpaceId) {
 let studySpaceStatusNameExists = function(studySpaceStatusName) {
     return new Promise((resolve, reject) => {
         db.collection('studySpaceStatuses').findOne({_id: studySpaceStatusName}, function(err, statusName) {
-            if (err) return res.status(500).end(err);
+            if (err) return res.status(500).end(err.message);
             if (statusName === null) { reject(new Error('provided studySpaceStatusName does not exist')); }
             else { resolve(); }
         });
@@ -275,7 +275,7 @@ let studySpaceStatusNameExists = function(studySpaceStatusName) {
 let buildingNameExists = function(buildingName) {
     return new Promise((resolve, reject) => {
         db.collection('buildings').findOne({_id: buildingName}, function(err, building) {
-            if (err) return res.status(500).end(err);
+            if (err) return res.status(500).end(err.message);
             if (building === null) { reject(new Error('provided buildingName does not exist')); }
             else { resolve(); }
         });
@@ -286,7 +286,7 @@ let buildingNameExists = function(buildingName) {
 let imageIdExists = function(imageId) {
     return new Promise((resolve, reject) => {
         db.collection('images').findOne({_id: imageId}, function(err, image) {
-            if (err) return res.status(500).end(err);
+            if (err) return res.status(500).end(err.message);
             if (image == null) { reject(new Error('provided imageId does not exist'));}
             else { resolve(); }
         });
@@ -300,7 +300,7 @@ let getAvailabilityReports = function(buildingName, studySpaceId) {
             let XminsAgo = new Date(Date.now() - minutesDelay*60*1000);
     
             db.collection('availabilityReports').find({studySpaceId: studySpaceId, createdAt: { $gte: XminsAgo }}).toArray(function(err, reports) {
-                if (err) return res.status(500).end(err);
+                if (err) return res.status(500).end(err.message);
                 resolve(reports);
             });
         })
@@ -405,7 +405,7 @@ app.post('/signup/', [
     let users = db.collection('users');
 
     users.findOne({_id: newUser._id}, function(err, user) {
-        if (err) return res.status(500).end(err);
+        if (err) return res.status(500).end(err.message);
         if (user) return res.status(409).end("username " + newUser._id + " already exists");
 
         bcrypt.genSalt(10, function(err, salt) {
@@ -414,7 +414,7 @@ app.post('/signup/', [
                 if (err) return res.status(500).end(err);
                 newUser.password = saltedHash;
                 users.insertOne(newUser, function(err, result) {
-                    if (err) return res.status(500).end(err);
+                    if (err) return res.status(500).end(err.message);
                     return res.json('user ' + newUser._id + ' signed up');
                 });
             });
@@ -442,7 +442,7 @@ app.post('/signin/', [
     // retrieve user from the db
     let users = db.collection('users');
     users.findOne({_id: username}, function(err, user) {
-        if (err) return res.status(500).end(err);
+        if (err) return res.status(500).end(err.message);
         if (!user) return res.status(401).end('access denied. Have you created an account?');
         bcrypt.compare(password, user.password, function(err, valid) {
             if (err) return res.status(500).end(err);
@@ -521,24 +521,24 @@ function(req, res, next) {
     
     // ensure buildingName, studySpaceStatusName, and imageId are valid
     db.collection('buildings').findOne({_id: newStudySpace.buildingName}, function(err, building) {
-        if (err) return res.status(500).end(err);
+        if (err) return res.status(500).end(err.message);
         if (building === null) { return res.status(400).end('provided buildingName does not exist'); }
         
         // ensure studySpaceStatusName is valid
         db.collection('studySpaceStatuses').findOne({_id: newStudySpace.studySpaceStatusName}, function(err, statusName) {
-            if (err) return res.status(500).end(err);
+            if (err) return res.status(500).end(err.message);
             if (statusName === null) { return res.status(400).end('provided studySpaceStatusName does not exist'); }
             
             // ensure imageId, if provided, is valid
             if (isNullOrUndef(newStudySpace.imageId)) {
                 // insert study space
                 db.collection('studySpaces').insertOne(newStudySpace, function(err, result) {
-                    if (err) return res.status(500).end(err);
+                    if (err) return res.status(500).end(err.message);
                     return res.json(newStudySpace);
                 });
             } else {                
                 db.collection('images').findOne({_id: newStudySpace.imageId}, function(err, image) {
-                    if (err) return res.status(500).end(err);
+                    if (err) return res.status(500).end(err.message);
                     if (image == null) { return res.status(400).end('provided imageId does not exist'); }
                     // insert study space
                     db.collection('studySpaces').insertOne(newStudySpace, function(err, result) {
@@ -573,12 +573,12 @@ function(req, res, next) {
     let buildings = db.collection('buildings');
     
     buildings.findOne({_id: newBuilding._id}, function(err, building) {
-        if (err) return res.status(500).end(err);
+        if (err) return res.status(500).end(err.message);
         if (building) return res.status(409).end('building _id: ' + newBuilding._id + ' already exists');
 
         // insert building
         buildings.insertOne(newBuilding, function(err, result) {
-            if (err) return res.status(500).end(err);
+            if (err) return res.status(500).end(err.message);
             return res.json(newBuilding);
         });
     });
@@ -629,12 +629,12 @@ function(req, res, next) {
         let availabilityReports = db.collection('availabilityReports');
         // get the one latest availabiltiy report by this user on this study space
         availabilityReports.find({username: newAR.username, studySpaceId: newAR.studySpaceId}).sort({createdAt: -1}).limit(1).next(function(err, recentReport) {
-            if (err) return res.status(500).end(err);
+            if (err) return res.status(500).end(err.message);
 
             // only add report if no recent reports found or the most recent report was more than X minutes ago.
             if (recentReport === null || ((new Date() - recentReport.createdAt)/(60*1000) > minutesDelay)) {
                 availabilityReports.insertOne(newAR, function(err, result) {
-                    if (err) return res.status(500).end(err);
+                    if (err) return res.status(500).end(err.message);
                     return res.json(newAR);
                 });
             } else {
@@ -658,7 +658,7 @@ function(req, res, next) {
 // get all buildings
 app.get('/api/buildings/', function(req, res, next) {
     db.collection('buildings').find({}).toArray(function(err, buildings) {
-        if (err) return res.status(500).end(err);
+        if (err) return res.status(500).end(err.message);
         return res.json(buildings);
     });
 });
@@ -667,7 +667,7 @@ app.get('/api/buildings/', function(req, res, next) {
 // get all study spaces
 app.get('/api/studySpaces/', function(req, res, next) {
     db.collection('studySpaces').find({}).toArray(function(err, studySpaces) {
-        if (err) return res.status(500).end(err);
+        if (err) return res.status(500).end(err.message);
 
         /* wrap the update of each study space in a promise, so we are sure that
         all the study spaces in the foreach have processed before returning the JSON */
@@ -711,7 +711,7 @@ function(req, res, next) {
 
     buildingNameExists(buildingName).then(() => {
         db.collection('studySpaces').find({buildingName: buildingName}).toArray(function(err, studySpaces) {
-            if (err) return res.status(500).end(err);
+            if (err) return res.status(500).end(err.message);
 
             let promises = [];
 
@@ -758,7 +758,7 @@ function(req, res, next) {
     
     buildingNameExists(buildingName).then(() => {
         db.collection('studySpaces').findOne({_id: studySpaceId, buildingName: buildingName}, function(err, studySpace) {
-            if (err) return res.status(500).end(err);
+            if (err) return res.status(500).end(err.message);
             if (studySpace === null) return res.status(404).end('Provided studySpace id does not exist');
 
             // add availability reports to the studySpace result
@@ -920,7 +920,7 @@ function(req, res, next) {
 
         // update study space record
         studySpaces.updateOne({_id: newStudySpace._id}, { $set: newStudySpace }, function(err, result) {
-            if (err) return res.status(500).end(err);
+            if (err) return res.status(500).end(err.message);
             return res.json(newStudySpace);
         });
     })
@@ -953,11 +953,11 @@ function(req, res, next) {
     let buildings = db.collection('buildings');
     
     buildings.findOne({_id: req.params.buildingName}, function(err, building) {
-        if (err) return res.status(500).end(err);
+        if (err) return res.status(500).end(err.message);
         if (!building) return res.status(404).end('Cannot delete building. Provided buildingName: does not exist');
         
         buildings.deleteOne({_id: building._id}, function(err) {
-            if (err) return res.status(500).end(err);
+            if (err) return res.status(500).end(err.message);
             res.json(building);
         });
     });
@@ -986,19 +986,35 @@ function(req, res, next) {
 
     // find the study space, if it exists:
     studySpaces.findOne({_id: studySpaceId, buildingName: buildingName}, function(err, studySpace){
-        if (err) return res.status(500).end(err);
+        if (err) return res.status(500).end(err.message);
         if (!studySpace) return res.status(404).end('Cannot delete studySpace. Provided studySpaceId does not exist');
 
         // delete the studyspace
-        studySpaces.deleteOne({_id: studySpaceId}, function(err) {
-            if (err) return res.status(500).end(err);
-            res.json(studySpace);
+        deleteStudySpace = new Promise((resolve, reject) => {
+            studySpaces.deleteOne({_id: studySpaceId}, function(err) {
+                if (err) return res.status(500).end(err.message);
+                resolve();
+            });
         });
         
         // TODO: delete the usersFavourites of this studySpace
 
         // TODO: delete studyspace reviews
 
-        // TODO: delete availability reports of this space
+        // delete availability reports of this space
+        deleteAvailabilityReports = new Promise((resolve, reject) => {
+            db.collection('availabilityReports').deleteMany({studySpaceId: studySpaceId}, function(err) {
+                if (err) return res.status(500).end(err.message);
+                resolve();
+            });
+        });
+
+        let verifications = [
+            deleteStudySpace,
+            deleteAvailabilityReports
+        ];
+        Promise.all(verifications).then(() => {
+            return res.json(studySpace);
+        });
     });
 });
