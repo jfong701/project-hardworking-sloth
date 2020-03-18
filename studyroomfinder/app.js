@@ -189,7 +189,7 @@ class AvailabilityReport {
 
 // customized for user validation
 function buildUsersErrorMessage(errors) {
-    errorMsg = '';
+    let errorMsg = '';
     errors.array().forEach(error => {
         switch (error.param) {
             case 'username':
@@ -209,7 +209,7 @@ function buildUsersErrorMessage(errors) {
 }
 // generic error messages
 function buildErrorMessage(errors) {
-    errorMsg = '';
+    let errorMsg = '';
     errors.array().forEach(error => {
         errorMsg = errorMsg.concat(error.param + ': ' + error.msg + '; ');
     });
@@ -301,12 +301,10 @@ let getAvailabilityReports = function(buildingName, studySpaceId) {
     
             db.collection('availabilityReports').find({studySpaceId: studySpaceId, createdAt: { $gte: XminsAgo }}).toArray(function(err, reports) {
                 if (err) return res.status(500).end(err);
-                // return res.json(reports);
                 resolve(reports);
             });
         })
         .catch((rejectReason) => {
-            // return res.status(400).end(rejectReason.message);
             reject(new Error(rejectReason.message));
         }); 
     });
@@ -388,7 +386,7 @@ app.post('/signup/', [
     // validation - custom validation for user related
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        errorMsg = buildUsersErrorMessage(errors);
+        let errorMsg = buildUsersErrorMessage(errors);
         return res.status(400).end(errorMsg);
     }
 
@@ -434,7 +432,7 @@ app.post('/signin/', [
     // validation - custom validation for user related
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        errorMsg = buildUsersErrorMessage(errors);
+        const errorMsg = buildUsersErrorMessage(errors);
         return res.status(400).end(errorMsg);
     }
 
@@ -498,7 +496,7 @@ function(req, res, next) {
     // validation
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        errorMsg = buildErrorMessage(errors);
+        const errorMsg = buildErrorMessage(errors);
         return res.status(400).end(errorMsg);
     }
 
@@ -566,7 +564,7 @@ function(req, res, next) {
     // validation
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        errorMsg = buildErrorMessage(errors);
+        const errorMsg = buildErrorMessage(errors);
         return res.status(400).end(errorMsg);
     }
 
@@ -599,7 +597,7 @@ function(req, res, next) {
     // validation
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        errorMsg = buildErrorMessage(errors);
+        const errorMsg = buildErrorMessage(errors);
         return res.status(400).end(errorMsg);
     }
 
@@ -616,7 +614,7 @@ function(req, res, next) {
     // Check that all promises resolve, if one of them fails, then send error code
 
     // ensure these criteria are met
-    verifications = [
+    let verifications = [
         studySpaceIdExists(newAR.studySpaceId),
         studySpaceIdExistsInBuilding(req.params.buildingName, newAR.studySpaceId),
         studySpaceStatusNameExists(newAR.studySpaceStatusName)
@@ -705,7 +703,7 @@ function(req, res, next) {
     // validation
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        errorMsg = buildErrorMessage(errors);
+        const errorMsg = buildErrorMessage(errors);
         return res.status(400).end(errorMsg);
     }
 
@@ -751,7 +749,7 @@ function(req, res, next) {
     // validation
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        errorMsg = buildErrorMessage(errors);
+        const errorMsg = buildErrorMessage(errors);
         return res.status(400).end(errorMsg);
     }
 
@@ -788,7 +786,7 @@ function(req, res, next) {
     // validation
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        errorMsg = buildErrorMessage(errors);
+        const errorMsg = buildErrorMessage(errors);
         return res.status(400).end(errorMsg);
     }
 
@@ -812,7 +810,7 @@ function(req, res, next) {
     // validation
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        errorMsg = buildErrorMessage(errors);
+        const errorMsg = buildErrorMessage(errors);
         return res.status(400).end(errorMsg);
     }
 
@@ -877,7 +875,7 @@ function(req, res, next) {
     // validation
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        errorMsg = buildErrorMessage(errors);
+        const errorMsg = buildErrorMessage(errors);
         return res.status(400).end(errorMsg);
     }
 
@@ -948,7 +946,7 @@ function(req, res, next) {
     // validation
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        errorMsg = buildErrorMessage(errors);
+        const errorMsg = buildErrorMessage(errors);
         return res.status(400).end(errorMsg);
     }
 
@@ -977,7 +975,7 @@ function(req, res, next) {
     // validation
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        errorMsg = buildErrorMessage(errors);
+        const errorMsg = buildErrorMessage(errors);
         return res.status(400).end(errorMsg);
     }
 
