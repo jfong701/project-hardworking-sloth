@@ -247,7 +247,7 @@ let studySpaceIdExists = function(studySpaceId) {
     });
 };
 
-let studySpaceIdExistsInBuilding = function(studySpaceId, buildingName) {
+let studySpaceIdExistsInBuilding = function(buildingName, studySpaceId) {
     return new Promise((resolve, reject) => {
         buildingNameExists(buildingName).then(() => {
             db.collection('studySpaces').findOne({_id: studySpaceId, buildingName: buildingName}, function(err, studySpace) {
@@ -289,6 +289,85 @@ let imageIdExists = function(imageId) {
             if (err) return res.status(500).end(err);
             if (image == null) { reject(new Error('provided imageId does not exist'));}
             else { resolve(); }
+        });
+    });
+};
+
+let getAvailabilityReports = function(buildingName, studySpaceId) {
+    return new Promise((resolve, reject) => {
+        studySpaceIdExistsInBuilding(buildingName, studySpaceId).then(() => {
+            // the time minutesDelay ago
+            let XminsAgo = new Date(Date.now() - minutesDelay*60*1000);
+    
+            db.collection('availabilityReports').find({studySpaceId: studySpaceId, createdAt: { $gte: XminsAgo }}).toArray(function(err, reports) {
+                if (err) return res.status(500).end(err);
+                // return res.json(reports);
+                resolve(reports);
+            });
+        })
+        .catch((rejectReason) => {
+            // return res.status(400).end(rejectReason.message);
+            reject(new Error(rejectReason.message));
+        }); 
+    });
+};
+
+// minimal availability reports to be bundled with getting a study space
+// object looks like:
+// {isVerified: false, studySpaceStatusName: "available", rawReports: {available: 0, nearlyFull: 0, full: 0}}
+let getProcessedAvailabilityReports = function(buildingName, studySpaceId) {
+    return new Promise((resolve, reject) => {
+        getAvailabilityReports(buildingName, studySpaceId).then((reports) => {
+            
+            let returnObj = {};
+
+            let rawReports = {available: 0, nearlyFull: 0, full: 0};
+            reports.forEach((report) => {
+                switch(report.studySpaceStatusName) {
+                    case 'Available':
+                        rawReports.available++;
+                        break;
+                    case 'Nearly Full':
+                        rawReports.nearlyFull++;
+                        break;
+                    case 'Full':
+                        rawReports.full++;
+                        break;
+                }
+            });
+            returnObj.rawReports = rawReports;
+
+            returnObj.studySpaceStatusName = 'Available';
+            returnObj.isVerified = false;
+            let numReports = reports.length;
+            let largest = 0;
+            for (const statusName in rawReports) {
+                if (rawReports[statusName] > numReports/2 && rawReports[statusName] >= 3) {
+                    returnObj.isVerified = true;
+                }
+                // setting status
+                if (rawReports[statusName] > largest) {
+                    returnObj.studySpaceStatusName = statusName;
+                    largest = rawReports[statusName];
+                }
+            }
+
+            // prettify the study space StatusName
+            switch(returnObj.studySpaceStatusName) {
+                case 'available':
+                    returnObj.studySpaceStatusName = 'Available';
+                    break;
+                case 'nearlyFull':
+                    returnObj.studySpaceStatusName = 'Nearly Full';
+                    break;
+                case 'full':
+                    returnObj.studySpaceStatusName = 'Full';
+                    break;
+            }
+
+            resolve(returnObj);
+        }).catch((rejectReason) => {
+            reject(new Error(rejectReason.message));
         });
     });
 };
@@ -539,7 +618,7 @@ function(req, res, next) {
     // ensure these criteria are met
     verifications = [
         studySpaceIdExists(newAR.studySpaceId),
-        studySpaceIdExistsInBuilding(newAR.studySpaceId, req.params.buildingName),
+        studySpaceIdExistsInBuilding(req.params.buildingName, newAR.studySpaceId),
         studySpaceStatusNameExists(newAR.studySpaceStatusName)
     ];
 
@@ -615,7 +694,27 @@ function(req, res, next) {
     buildingNameExists(buildingName).then(() => {
         db.collection('studySpaces').find({buildingName: buildingName}).toArray(function(err, studySpaces) {
             if (err) return res.status(500).end(err);
-            return res.json(studySpaces);
+
+            /* wrap the update of each study space in a promise, so we are sure that
+            all the study spaces in the foreach have processed before returning the JSON */
+            let promises = [];
+
+            // add availability reports to each studySpace result
+            studySpaces.forEach((studySpace) => {
+                promises.push(
+                    getProcessedAvailabilityReports(studySpace.buildingName, studySpace._id)
+                    .then((r) => {
+                        studySpace.rawReports = r.rawReports;
+                        studySpace.isVerified = r.isVerified;
+                        studySpace.studySpaceStatusName = r.studySpaceStatusName;
+                    })
+                );
+            });
+
+            // all availability reports are added
+            Promise.all(promises).then(() => {
+                return res.json(studySpaces);
+            });
         });
     })
     .catch((rejectReason) => {
@@ -645,7 +744,15 @@ function(req, res, next) {
         db.collection('studySpaces').findOne({_id: studySpaceId, buildingName: buildingName}, function(err, studySpace) {
             if (err) return res.status(500).end(err);
             if (studySpace === null) return res.status(404).end('Provided studySpace id does not exist');
-            return res.json(studySpace);
+
+            // add availability reports to the studySpace result
+            getProcessedAvailabilityReports(buildingName, studySpaceId)
+            .then((r) => {
+                studySpace.rawReports = r.rawReports;
+                studySpace.isVerified = r.isVerified;
+                studySpace.studySpaceStatusName = r.studySpaceStatusName;
+                return res.json(studySpace);
+            });
         });
     })
     .catch((rejectReason) => {
@@ -670,21 +777,9 @@ function(req, res, next) {
     let buildingName = req.params.buildingName;
     let studySpaceId = new mongo.ObjectID(req.params.studySpaceId);
     
-    let verifications = [
-        buildingNameExists(buildingName),
-        studySpaceIdExists(studySpaceId)
-    ];
-
-    Promise.all(verifications).then(() => {
-        // the time minutesDelay ago
-        XminsAgo = new Date(Date.now() - minutesDelay*60*1000);
-
-        db.collection('availabilityReports').find({studySpaceId: studySpaceId, createdAt: { $gte: XminsAgo }}).toArray(function(err, reports) {
-            if (err) return res.status(500).end(err);
-            return res.json(reports);
-        });
-    })
-    .catch((rejectReason) => {
+    getAvailabilityReports(buildingName, studySpaceId).then((reports) => {
+        return res.json(reports);
+    }).catch((rejectReason) => {
         return res.status(400).end(rejectReason.message);
     });
 });
@@ -702,9 +797,6 @@ function(req, res, next) {
         errorMsg = buildErrorMessage(errors);
         return res.status(400).end(errorMsg);
     }
-
-    let buildingName = req.params.buildingName;
-    let studySpaceId = new mongo.ObjectID(req.params.studySpaceId);
 
     // the geoJSON point
     let point = req.body.point;
@@ -727,7 +819,17 @@ function(req, res, next) {
         }
     }, function(err, studySpace) {
         if (err) return res.status(500).end(err.message);
-        return res.json(studySpace);
+        // add availability reports to the studySpace result
+        getProcessedAvailabilityReports(studySpace.buildingName, studySpace._id)
+        .then((r) => {
+            studySpace.rawReports = r.rawReports;
+            studySpace.isVerified = r.isVerified;
+            studySpace.studySpaceStatusName = r.studySpaceStatusName;
+            return res.json(studySpace);
+        })
+        .catch((rejectReason) => {
+            return res.status(400).end(rejectReason.message);
+        });
     });
 });
 
