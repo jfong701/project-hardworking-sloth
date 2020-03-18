@@ -337,7 +337,7 @@ let getProcessedAvailabilityReports = function(buildingName, studySpaceId) {
             });
             returnObj.rawReports = rawReports;
 
-            returnObj.studySpaceStatusName = 'Available';
+            returnObj.studySpaceStatusName = 'Unknown';
             returnObj.isVerified = false;
             let numReports = reports.length;
             let largest = 0;
@@ -670,7 +670,27 @@ app.get('/api/buildings/', function(req, res, next) {
 app.get('/api/studySpaces/', function(req, res, next) {
     db.collection('studySpaces').find({}).toArray(function(err, studySpaces) {
         if (err) return res.status(500).end(err);
-        return res.json(studySpaces);
+
+        /* wrap the update of each study space in a promise, so we are sure that
+        all the study spaces in the foreach have processed before returning the JSON */
+        let promises = [];
+
+        // add availability reports to each studySpace result
+        studySpaces.forEach((studySpace) => {
+            promises.push(
+                getProcessedAvailabilityReports(studySpace.buildingName, studySpace._id)
+                .then((r) => {
+                    studySpace.rawReports = r.rawReports;
+                    studySpace.isVerified = r.isVerified;
+                    studySpace.studySpaceStatusName = r.studySpaceStatusName;
+                })
+            );
+        });
+
+        // all availability reports are added
+        Promise.all(promises).then(() => {
+            return res.json(studySpaces);
+        });
     });
 });
 
@@ -695,8 +715,6 @@ function(req, res, next) {
         db.collection('studySpaces').find({buildingName: buildingName}).toArray(function(err, studySpaces) {
             if (err) return res.status(500).end(err);
 
-            /* wrap the update of each study space in a promise, so we are sure that
-            all the study spaces in the foreach have processed before returning the JSON */
             let promises = [];
 
             // add availability reports to each studySpace result
