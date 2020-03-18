@@ -155,14 +155,13 @@ class User {
 }
 
 class StudySpace {
-    constructor(_id, name, description, capacity, buildingName, polygon, studySpaceStatusName, hasOutlets, wifiQuality, groupFriendly, quietStudy, imageId, createdAt, updatedAt) {
+    constructor(_id, name, description, capacity, buildingName, polygon, hasOutlets, wifiQuality, groupFriendly, quietStudy, imageId, createdAt, updatedAt) {
         this._id = _id;
         this.name = name;
         this.description = description;
         this.capacity = capacity;
         this.buildingName = buildingName;
         this.polygon = polygon;
-        this.studySpaceStatusName = studySpaceStatusName;
         this.hasOutlets = hasOutlets;
         this.wifiQuality = wifiQuality;
         this.groupFriendly = groupFriendly;
@@ -509,7 +508,6 @@ function(req, res, next) {
         req.body.capacity,
         req.params.buildingName,
         req.body.polygon,
-        'Available',
         req.body.hasOutlets,
         req.body.wifiQuality,
         req.body.groupFriendly,
@@ -523,31 +521,25 @@ function(req, res, next) {
     db.collection('buildings').findOne({_id: newStudySpace.buildingName}, function(err, building) {
         if (err) return res.status(500).end(err.message);
         if (building === null) { return res.status(400).end('provided buildingName does not exist'); }
-        
-        // ensure studySpaceStatusName is valid
-        db.collection('studySpaceStatuses').findOne({_id: newStudySpace.studySpaceStatusName}, function(err, statusName) {
-            if (err) return res.status(500).end(err.message);
-            if (statusName === null) { return res.status(400).end('provided studySpaceStatusName does not exist'); }
             
-            // ensure imageId, if provided, is valid
-            if (isNullOrUndef(newStudySpace.imageId)) {
+        // ensure imageId, if provided, is valid
+        if (isNullOrUndef(newStudySpace.imageId)) {
+            // insert study space
+            db.collection('studySpaces').insertOne(newStudySpace, function(err, result) {
+                if (err) return res.status(500).end(err.message);
+                return res.json(newStudySpace);
+            });
+        } else {                
+            db.collection('images').findOne({_id: newStudySpace.imageId}, function(err, image) {
+                if (err) return res.status(500).end(err.message);
+                if (image == null) { return res.status(400).end('provided imageId does not exist'); }
                 // insert study space
                 db.collection('studySpaces').insertOne(newStudySpace, function(err, result) {
-                    if (err) return res.status(500).end(err.message);
+                    if(err) return res.status(500).end(err);
                     return res.json(newStudySpace);
                 });
-            } else {                
-                db.collection('images').findOne({_id: newStudySpace.imageId}, function(err, image) {
-                    if (err) return res.status(500).end(err.message);
-                    if (image == null) { return res.status(400).end('provided imageId does not exist'); }
-                    // insert study space
-                    db.collection('studySpaces').insertOne(newStudySpace, function(err, result) {
-                        if(err) return res.status(500).end(err);
-                        return res.json(newStudySpace);
-                    });
-                });
-            }
-        });
+            });
+        }
     });
 });
 
@@ -862,7 +854,6 @@ isAuthenticated, isAdmin,
     body('description').optional().isLength({min: 1, max: 500}).trim().escape(),
     body('capacity').optional().isInt({min: 0, max: 2000}),
     body('buildingName').optional().isLength({min: 1, max: 200}).trim().escape(), // optional updated buildingName
-    body('studySpaceStatusName').optional().isLength({min: 1, max: 100}).trim().escape(),
     body('polygon').optional().not().isEmpty(),
     body('hasOutlets').optional().isLength({min: 1, max: 100}).trim().escape(),
     body('wifiQuality').optional().isLength({min: 1, max: 100}).trim().escape(),
@@ -890,7 +881,6 @@ function(req, res, next) {
         req.body.capacity,
         req.body.buildingName,  // buildingName passed in body is what to update to
         req.body.polygon,
-        req.body.studySpaceStatusName,
         req.body.hasOutlets,
         req.body.wifiQuality,
         req.body.groupFriendly,
@@ -907,7 +897,6 @@ function(req, res, next) {
     // conditions to verify before attempting to update data
     let v = [];
     v.push(studySpaceIdExists(newStudySpace._id));
-    if (newStudySpace.studySpaceStatusName) { v.push(studySpaceStatusNameExists(newStudySpace.studySpaceStatusName)); }
     if (newStudySpace.buildingName) { v.push(buildingNameExists(newStudySpace.buildingName)); }
     if (newStudySpace.imageId) { v.push(imageIdExists(newStudySpace.imageId)); }
 
