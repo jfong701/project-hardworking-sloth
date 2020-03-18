@@ -31,6 +31,14 @@ export default {
     LTileLayer,
     LMarker,
   },
+  methods: {
+    removeMarker(index) {
+      this.markers.splice(index, 1);
+    },
+    addMarker(event) {
+      this.markers.push(event.latlng);
+    }
+  }
 }
 </script>
 
