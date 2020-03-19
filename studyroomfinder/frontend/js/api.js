@@ -7,10 +7,15 @@ let api = (function(){
     let userListeners = [];
     let errorListeners = [];
     // TODO: Array for building and/study space listeners
+    let buildingListeners = [];
 
     let getUsername = function(){
         return document.cookie.replace(/(?:(?:^|.*;\s*)username\s*\=\s*([^;]*).*$)|^.*$/, "$1");
     }
+
+    let getBuildings = function(callback){
+      send("GET", '/api/buildings/', null, callback);
+    };
 
     function notifyUserListeners(username){
         userListeners.forEach(function(handler){
@@ -25,7 +30,14 @@ let api = (function(){
     }
 
     // TODO: Function that notifies building listeners
-
+    function notifyBuildingListeners(){
+      getBuildings(function(err, res){
+        if(err) return notifyErrorListeners(err);
+        buildingListeners.forEach(function(listener){
+          listener(res);
+        });
+      });
+    }
     // TODO: Function that notifies study space listeners
 
     /* ***** Data types *****
@@ -78,9 +90,9 @@ let api = (function(){
         }
     }
 
-    module.onUserUpdate = function(handler){
-        userListeners.push(handler);
-        handler(getUsername());
+    module.onUserUpdate = function(listener){
+        userListeners.push(listener);
+        listener(getUsername());
     }
 
 
@@ -113,16 +125,26 @@ let api = (function(){
       });
     }
 
+    module.onBuildingUpdate = function (listener){
+        buildingListeners.push(listener);
+        getBuildings(function(err, res){
+          if(err) return notifyErrorListeners(err);
+          listener(res);
+        });
+    }
+
+
     module.getBuildingStudySpaces = function(buildingName) {
-      send("GET", '/api/buildings/:buildingName/studySpaces/', {buildingName},
+      send("GET", '/api/buildings/' + buildingName + '/studySpaces/', null,
       function(err, res){
         if(err) return notifyErrorListeners(err);
         // TODO: Function to notify building listeners
+        notifyBuildingListeners();
       });
     }
 
     // TODO: Other functions needed for searches
-    
+
     module.onError = function(listener){
         errorListeners.push(listener);
     };
@@ -130,7 +152,7 @@ let api = (function(){
     // Refreshes the page every two seconds
     (function refresh(){
         setTimeout(function(e){
-            notifyImageListeners();
+            // TODO: Notify listeners here to be refreshed
             refresh();
         }, 2000);
     }());
