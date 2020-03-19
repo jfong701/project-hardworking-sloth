@@ -1,12 +1,11 @@
-import api from '.api'
+import api from './api.js'
 
 export default {
-	register: function(event, username, password) {
+	signup: function(event, username, password) {
 		api().post('/signup/', {username: username, password: password})
 		.then(response => {
 			if (response.status == '200') {
-				window.location.href = "/login";
-				//event.$router.push('/')
+				window.location.href = "/Login";
 			}
 		})
 		.catch(function(e) {

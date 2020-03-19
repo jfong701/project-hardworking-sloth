@@ -4,7 +4,7 @@ export default {
 	login: function(event, username, password) {
 		api().post('/signin/', {username: username, password: password})
 		.then(response => {
-			this.$router.replace({ name: "Homepage" });
+			event.$router.replace({ name: "Homepage" });
 			response;
 		})
 		.catch(function(e) {

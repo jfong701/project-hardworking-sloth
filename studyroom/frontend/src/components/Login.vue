@@ -1,10 +1,15 @@
 <template>
-    <div id="Login">
+<div id="login">
+    <div>
         <h1>Login</h1>
         <input type="text" name="username" v-model="input.username" placeholder="Username" />
         <input type="password" name="password" v-model="input.password" placeholder="Password" />
         <button type="button" v-on:click="login()">Login</button>
     </div>
+    <div class=".s">
+    <router-link  to="/SignUp" replace>Sign in</router-link>
+    </div>
+</div>
 </template>
 
 
@@ -32,11 +37,13 @@ import Login from '../js/login.js';
 
 <style scoped>
     #login {
-        width: 500px;
-        border: 1px solid #CCCCCC;
-        background-color: #FFFFFF;
-        margin: auto;
-        margin-top: 200px;
+        display: flex;
+        justify-content: center;
+        align-content: space-around;
+    }
+
+    .s {
         padding: 20px;
+        justify-content: flex-end;
     }
 </style>
