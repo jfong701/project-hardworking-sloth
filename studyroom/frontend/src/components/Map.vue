@@ -38,7 +38,7 @@ export default {
   },
   data() {
     return {
-      zoom:22,
+      zoom:19,
       center: L.latLng(43.7839, -79.1874),
       circle: {
         center: L.latLng(43.7845, -79.1874),

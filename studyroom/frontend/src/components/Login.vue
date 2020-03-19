@@ -7,7 +7,7 @@
         <button type="button" v-on:click="login()">Login</button>
     </div>
     <div class=".s">
-    <router-link  to="/SignUp" replace>Sign in</router-link>
+    <router-link  to="/SignUp" replace>Sign up</router-link>
     </div>
 </div>
 </template>

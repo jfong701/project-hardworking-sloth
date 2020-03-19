@@ -3,9 +3,8 @@
         <h1>Study Room Finder</h1>
             <!-- TODO: Add any missing header elements -->
             <input type="search" name="search bar" id="search_bar">
-            <router-link to="/login" replace>Login</router-link>
             <router-link  to="/SignUp" replace>Sign up</router-link>
-            <router-link v-if="authenticated" to="/Homepage" replace>Sign out</router-link>
+            <router-link to="/Login" replace>Sign out</router-link>
         <!-- TODO: Create map -->
         <div class="map">
         <Map/>
