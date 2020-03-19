@@ -2,14 +2,26 @@
   <div>
     <h1>Map</h1>
     <l-map :zoom="zoom" :center="center" style="height: 850px; width: 1000px">
-      <l-tile-layer :url="url" :attribution="attribution"></l-tile-layer>
+    <l-tile-layer :options="{ maxZoom: 22 }" :url="url" :attribution="attribution"></l-tile-layer>
       <l-marker :lat-lng="marker"></l-marker>
+      <l-circle
+        :lat-lng="circle.center"
+        :radius="circle.radius"
+      >
+        <l-popup content="Circle" />
+      </l-circle>
+      <l-rectangle
+        :bounds="rectangle.bounds"
+        :color="rectangle.color"
+      >
+        <l-popup content="Rectangle" />
+      </l-rectangle>
     </l-map>
   </div>
 </template>
 
 <script>
-import { LMap, LTileLayer, LMarker } from 'vue2-leaflet';
+import { LMap, LTileLayer, LMarker, LCircle, LRectangle } from 'vue2-leaflet';
 import L from 'leaflet';
 
 
@@ -17,26 +29,28 @@ import L from 'leaflet';
 
 export default {
   name: 'Map',
-  data() {
-    return {
-      zoom:100,
-      center: L.latLng(43.7839, -79.1874),
-      url:'http://{s}.tile.osm.org/{z}/{x}/{y}.png',
-      attribution:'&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors',
-      marker: L.latLng(43.7839, -79.1874),
-    }
-  },
   components: {
     LMap,
     LTileLayer,
     LMarker,
+    LCircle,
+    LRectangle
   },
-  methods: {
-    removeMarker(index) {
-      this.markers.splice(index, 1);
-    },
-    addMarker(event) {
-      this.markers.push(event.latlng);
+  data() {
+    return {
+      zoom:22,
+      center: L.latLng(43.7839, -79.1874),
+      circle: {
+        center: L.latLng(43.7845, -79.1874),
+        radius: 30
+      },
+      rectangle: {
+        bounds: [[43.7839, -79.1872], [43.7843, -79.1860]],
+        color: "red"
+      },
+      url: 'https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/256/{z}/{x}/{y}@2x?access_token=sk.eyJ1IjoiamZvbmc3MDEiLCJhIjoiY2s3cDExa3lxMDIzNDNrcnNwdjJlbndkZCJ9.n2BIBzqJ9gyJyHjlxnNENw',
+      attribution:'&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors',
+      marker: L.latLng(43.7839, -79.1874),
     }
   }
 }
