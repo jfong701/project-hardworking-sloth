@@ -15,7 +15,11 @@
 
 <script>
 import Login from '../js/login.js';
-
+// Imports the Radar SDK module
+import Radar from 'radar-sdk-js';
+// Initializes SDK by passing the publishable key as a string parameter
+// TODO: Set the publishable key to a variable as pass it as a parameter here
+Radar.initialize("prj_test_sk_0f830970b4e638d159e9a694a03b8a8b23e835ef");
     export default {
         name: 'Login',
         data() {
@@ -30,6 +34,13 @@ import Login from '../js/login.js';
             login: function() {
             let self = this;
 			Login.login(self, this.input.username, this.input.password);
+      // Identifies user  when logged, stores a cookie with UUID "device ID"
+      Radar.setUserId(this.input.username);
+      Radar.trackOnce(function(status, location, user, events) {
+        // do something with status, location, user, events
+        console.log(status, location, user, events);
+        // Note that the location of the user may not be very accurate
+      });
            }
         }
     }
