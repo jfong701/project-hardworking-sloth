@@ -10,6 +10,7 @@ const { body, check, param, validationResult } = require('express-validator');
 const cookie = require('cookie');
 const session = require('express-session');
 const bodyParser = require('body-parser');
+const serveStatic = require('serve-static');
 
 // to retrieve important variables from a .env file (keeping DB credentials and others out of source code)
 require('dotenv').config();
@@ -76,7 +77,7 @@ app.use(function (req, res, next){
 });
 
 // use cors package to allow cross origin request from Vue frontend
-const whiteList = ['http://localhost:3000', 'http://localhost:8080'];
+const whiteList = ['http://localhost:3000', 'http://localhost:8080', 'https://studyroomfinder.herokuapp.com/'];
 const corsOptions = {
     origin: function(origin, callback) {
         // console.log('this is the origin', origin);
@@ -89,7 +90,8 @@ const corsOptions = {
     credentials: true
 };
 app.use(cors(corsOptions));
-app.use(express.static('static'));
+app.use(serveStatic(path.join(__dirname, 'dist')));
+
 
 
 /* ***** Data types *****
