@@ -21,7 +21,7 @@
 
 <style>
     body {
-        background-color: #F0F0F0;
+        background-color: rgba(16, 85, 141, 0.986);
     }
     h1 {
         padding: 0;
