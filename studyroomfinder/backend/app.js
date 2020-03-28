@@ -46,6 +46,9 @@ const geoIndexForStudySpace = function(db, callback) {
 // express settings
 const PORT = process.env.PORT || 3000;
 
+
+app.use(serveStatic(__dirname + '/../frontend/dist'));
+
 app.listen(PORT, function(err) {
     if (err) console.log(err);
     else console.log("HTTP server on http://localhost:%s", PORT);
@@ -90,7 +93,6 @@ const corsOptions = {
     credentials: true
 };
 app.use(cors(corsOptions));
-app.use(serveStatic(path.join(__dirname, 'dist')));
 
 
 
