@@ -13,8 +13,7 @@ const bodyParser = require('body-parser');
 const serveStatic = require('serve-static');
 
 // to retrieve important variables from a .env file (keeping DB credentials and others out of source code)
-require('dotenv').config();
-
+require('dotenv').config({path: path.resolve(__dirname, '..', '.env')});
 app.use(bodyParser.json());
 
 // time delay used for limiting availability reports, and filtering seeing only reports made for this study space
@@ -46,8 +45,7 @@ const geoIndexForStudySpace = function(db, callback) {
 // express settings
 const PORT = process.env.PORT || 5000;
 
-
-app.use(serveStatic(__dirname + '/../frontend/dist'));
+app.use(serveStatic(path.resolve(__dirname, '..', 'frontend/dist')));
 
 app.listen(PORT, function(err) {
     if (err) console.log(err);
