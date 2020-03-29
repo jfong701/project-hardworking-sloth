@@ -44,7 +44,7 @@ const geoIndexForStudySpace = function(db, callback) {
 };
 
 // express settings
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 
 app.use(serveStatic(__dirname + '/../frontend/dist'));
@@ -80,7 +80,7 @@ app.use(function (req, res, next){
 });
 
 // use cors package to allow cross origin request from Vue frontend
-const whiteList = ['http://localhost:3000', 'http://localhost:8080', 'https://studyroomfinder.herokuapp.com/'];
+const whiteList = ['http://localhost:5000', 'http://localhost:8080', 'https://studyroomfinder.herokuapp.com/'];
 const corsOptions = {
     origin: function(origin, callback) {
         // console.log('this is the origin', origin);
