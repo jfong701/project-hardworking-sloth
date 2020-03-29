@@ -1,6 +1,9 @@
 <template>
   <div>
     <h1>Map</h1>
+    <div>
+      <p>{{ coords }}</p>
+    </div>
     <l-map :zoom="zoom" :center="center" style="height: 850px; width: 1000px">
     <l-tile-layer :options="{ maxZoom: 22 }" :url="url" :attribution="attribution"></l-tile-layer>
       <l-marker :lat-lng="marker"></l-marker>
@@ -10,6 +13,13 @@
       >
         <l-popup content="Circle" />
       </l-circle>
+      <l-marker :lat-lng="[43.7839, -79.1874]">
+      <l-icon
+          :icon-size="dynamicSize"
+          :icon-anchor="dynamicAnchor"
+          icon-url="https://image.flaticon.com/icons/svg/1738/1738691.svg" >
+      </l-icon>
+      </l-marker>
       <l-rectangle
         :bounds="rectangle.bounds"
         :color="rectangle.color"
@@ -21,9 +31,9 @@
 </template>
 
 <script>
-import { LMap, LTileLayer, LMarker, LCircle, LRectangle } from 'vue2-leaflet';
+import { LMap, LTileLayer, LMarker, LCircle, LRectangle, LIcon} from 'vue2-leaflet';
 import L from 'leaflet';
-
+import Radar from '../js/radar.js';
 
 
 
@@ -34,7 +44,8 @@ export default {
     LTileLayer,
     LMarker,
     LCircle,
-    LRectangle
+    LRectangle,
+    LIcon
   },
   data() {
     return {
@@ -48,9 +59,32 @@ export default {
         bounds: [[43.7839, -79.1872], [43.7843, -79.1860]],
         color: "red"
       },
+      icon: L.icon({
+        iconUrl: 'https://lh3.googleusercontent.com/proxy/ZcYtqlXeuGOHru0UFzvHemclleQK6NVJVYlkEZvTRXrptObMScvVrDwkWr44AeDTE1DdsgrxL8F3',
+        iconAnchor: [16,16]
+      }),
       url: 'https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/256/{z}/{x}/{y}@2x?access_token=sk.eyJ1IjoiamZvbmc3MDEiLCJhIjoiY2s3cDExa3lxMDIzNDNrcnNwdjJlbndkZCJ9.n2BIBzqJ9gyJyHjlxnNENw',
       attribution:'&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors',
       marker: L.latLng(43.7839, -79.1874),
+      coords: null,
+      iconSize: 24,
+    };
+  },
+  computed: {
+    dynamicSize () {
+      return [this.iconSize, this.iconSize * 1.15];
+    },
+    dynamicAnchor () {
+      return [this.iconSize / 2, this.iconSize * 1.15];
+    }
+  },
+  created () {
+    this.coords = this.displayUsers();
+  },
+  methods:{
+    displayUsers: function () {
+      let self = this;
+      Radar.getUsers(self).then(result => this.coords = result.reverse());
     }
   }
 }

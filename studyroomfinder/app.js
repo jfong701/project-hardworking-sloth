@@ -10,6 +10,8 @@ const { body, check, param, validationResult } = require('express-validator');
 const cookie = require('cookie');
 const session = require('express-session');
 const bodyParser = require('body-parser');
+const https = require('https');
+const radar = require('radar-sdk-js');
 
 // to retrieve important variables from a .env file (keeping DB credentials and others out of source code)
 require('dotenv').config();
@@ -57,7 +59,7 @@ app.use(session({
     cookie: {
         // secure: true, // only allow cookie over HTTPS connection
         sameSite: 'strict' // restrict cookie from being sent out of this site
-    } 
+    }
 }));
 
 app.use(function (req, res, next){
@@ -68,7 +70,7 @@ app.use(function (req, res, next){
 
           // secure: true, /* only attach cookies on HTTPS connection*/
           sameSite: 'strict', /* restrict cookie from being sent out of this site */
-          path : '/', 
+          path : '/',
           maxAge: 60 * 60 * 24 * 7 // 1 week in number of seconds
     }));
     next();
@@ -90,6 +92,7 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 app.use(express.static('static'));
+
 
 
 /* ***** Data types *****
@@ -298,7 +301,7 @@ let getAvailabilityReports = function(buildingName, studySpaceId) {
         studySpaceIdExistsInBuilding(buildingName, studySpaceId).then(() => {
             // the time minutesDelay ago
             let XminsAgo = new Date(Date.now() - minutesDelay*60*1000);
-    
+
             db.collection('availabilityReports').find({studySpaceId: studySpaceId, createdAt: { $gte: XminsAgo }}).toArray(function(err, reports) {
                 if (err) return res.status(500).end(err.message);
                 resolve(reports);
@@ -306,7 +309,7 @@ let getAvailabilityReports = function(buildingName, studySpaceId) {
         })
         .catch((rejectReason) => {
             reject(new Error(rejectReason.message));
-        }); 
+        });
     });
 };
 
@@ -316,7 +319,7 @@ let getAvailabilityReports = function(buildingName, studySpaceId) {
 let getProcessedAvailabilityReports = function(buildingName, studySpaceId) {
     return new Promise((resolve, reject) => {
         getAvailabilityReports(buildingName, studySpaceId).then((reports) => {
-            
+
             let returnObj = {};
 
             let rawReports = {available: 0, nearlyFull: 0, full: 0};
@@ -453,7 +456,7 @@ app.post('/signin/', [
             res.setHeader('Set-Cookie', cookie.serialize('username', user._id, {
                 // secure: true, /* only attach cookies on HTTPS connection*/
                 sameSite: 'strict', /* restrict cookie from being sent out of this site */
-                path : '/', 
+                path : '/',
                 maxAge: 60 * 60 * 24 * 7 // 1 week in number of seconds
             }));
             return res.json("user " + username + " signed in");
@@ -467,7 +470,7 @@ app.get('/signout/', function(req, res, next) {
     res.setHeader('Set-Cookie', cookie.serialize('username', '', {
         // secure: true, /* only attach cookies on HTTPS connection*/
         sameSite: 'strict', /* restrict cookie from being sent out of this site */
-        path : '/', 
+        path : '/',
         maxAge: 60 * 60 * 24 * 7 // 1 week in number of seconds
   }));
   res.redirect('/');
@@ -517,12 +520,12 @@ function(req, res, next) {
         new Date(),
         new Date()
     );
-    
+
     // ensure buildingName, studySpaceStatusName, and imageId are valid
     db.collection('buildings').findOne({_id: newStudySpace.buildingName}, function(err, building) {
         if (err) return res.status(500).end(err.message);
         if (building === null) { return res.status(400).end('provided buildingName does not exist'); }
-            
+
         // ensure imageId, if provided, is valid
         if (isNullOrUndef(newStudySpace.imageId)) {
             // insert study space
@@ -530,7 +533,7 @@ function(req, res, next) {
                 if (err) return res.status(500).end(err.message);
                 return res.json(newStudySpace);
             });
-        } else {                
+        } else {
             db.collection('images').findOne({_id: newStudySpace.imageId}, function(err, image) {
                 if (err) return res.status(500).end(err.message);
                 if (image == null) { return res.status(400).end('provided imageId does not exist'); }
@@ -564,7 +567,7 @@ function(req, res, next) {
     let newBuilding = new Building(req.body.name, req.body.description, req.body.imageId, new Date(), new Date());
 
     let buildings = db.collection('buildings');
-    
+
     buildings.findOne({_id: newBuilding._id}, function(err, building) {
         if (err) return res.status(500).end(err.message);
         if (building) return res.status(409).end('building _id: ' + newBuilding._id + ' already exists');
@@ -584,7 +587,7 @@ isAuthenticated,
 [
     param('buildingName').isLength({min: 1, max: 200}).trim().escape(),
     param('studySpaceId').isMongoId(),
-    body('studySpaceStatusName').exists().isLength({min: 1, max: 100}).trim().escape(),   
+    body('studySpaceStatusName').exists().isLength({min: 1, max: 100}).trim().escape(),
 ],
 function(req, res, next) {
     // validation
@@ -732,7 +735,7 @@ function(req, res, next) {
 });
 
 // get a study space by buildingName, and studyspace id
-app.get('/api/buildings/:buildingName/studySpaces/:studySpaceId/', 
+app.get('/api/buildings/:buildingName/studySpaces/:studySpaceId/',
 [
     param('buildingName').isLength({min: 1, max: 200}).trim().escape(),
     param('studySpaceId').isMongoId()
@@ -748,7 +751,7 @@ function(req, res, next) {
 
     let buildingName = req.params.buildingName;
     let studySpaceId = mongo.ObjectID(req.params.studySpaceId);
-    
+
     buildingNameExists(buildingName).then(() => {
         db.collection('studySpaces').findOne({_id: studySpaceId, buildingName: buildingName}, function(err, studySpace) {
             if (err) return res.status(500).end(err.message);
@@ -785,7 +788,7 @@ function(req, res, next) {
 
     let buildingName = req.params.buildingName;
     let studySpaceId = new mongo.ObjectID(req.params.studySpaceId);
-    
+
     getAvailabilityReports(buildingName, studySpaceId).then((reports) => {
         return res.json(reports);
     }).catch((rejectReason) => {
@@ -809,7 +812,7 @@ function(req, res, next) {
 
     // the geoJSON point
     let point = req.body.point;
-    
+
     // ensure point is an object, and fields are of correct type
     if (typeof(point) !== 'object') {return res.status(400).end('point must be an object'); }
     if (point.type !== 'Point') {return res.status(400).end('point must be of type "Point"'); }
@@ -840,6 +843,36 @@ function(req, res, next) {
             return res.status(400).end(rejectReason.message);
         });
     });
+});
+
+
+// TODO: Code below was helped from source below
+// https://www.freecodecamp.org/forum/t/node-express-passing-request-headers-in-a-get-request/235160/4
+app.get('/api/displayUsers/', function(req, res, next) {
+    const testSecert = "prj_test_sk_0f830970b4e638d159e9a694a03b8a8b23e835ef";
+
+    let url = "https://api.radar.io/v1/users";
+    var options = {
+      method: "GET",
+      headers: {
+        "Authorization": testSecert
+      }
+    };
+
+    let dataStr = "";
+
+    let radarReq = https.request(url, options, function(response){
+      response.on("data", chunk => {
+        dataStr += chunk;
+      });
+      response.on("end", () => {
+        console.log("Radar data recieved.");
+        let radarData = JSON.parse(dataStr);
+        let users = radarData.users;
+        res.end(JSON.stringify(users));
+      });
+    });
+    radarReq.end();
 });
 
 // UPDATE ---------------------------------------------------------------------
@@ -873,7 +906,7 @@ function(req, res, next) {
 
     // because imageId is turned into mongoId,
     // but is also optional, set it here, and then add to studySpace
-    let imageId = req.body.imageId === undefined ? undefined : new mongo.ObjectID(req.body.imageId); 
+    let imageId = req.body.imageId === undefined ? undefined : new mongo.ObjectID(req.body.imageId);
 
     let newStudySpace = new StudySpace(
         new mongo.ObjectID(req.params.studySpaceId),
@@ -941,11 +974,11 @@ function(req, res, next) {
     }
 
     let buildings = db.collection('buildings');
-    
+
     buildings.findOne({_id: req.params.buildingName}, function(err, building) {
         if (err) return res.status(500).end(err.message);
         if (!building) return res.status(404).end('Cannot delete building. Provided buildingName: does not exist');
-        
+
         buildings.deleteOne({_id: building._id}, function(err) {
             if (err) return res.status(500).end(err.message);
             res.json(building);
@@ -955,7 +988,7 @@ function(req, res, next) {
 
 
 // delete a study space
-app.delete('/api/buildings/:buildingName/studySpaces/:studySpaceId/', 
+app.delete('/api/buildings/:buildingName/studySpaces/:studySpaceId/',
 isAuthenticated, isAdmin,
 [
     param('studySpaceId').isMongoId(),
@@ -986,7 +1019,7 @@ function(req, res, next) {
                 resolve();
             });
         });
-        
+
         // TODO: delete the usersFavourites of this studySpace
 
         // TODO: delete studyspace reviews
