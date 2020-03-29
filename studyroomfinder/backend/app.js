@@ -81,7 +81,7 @@ app.use(function (req, res, next){
 const whiteList = ['http://localhost:5000', 'http://localhost:8080', 'https://studyroomfinder.herokuapp.com'];
 const corsOptions = {
     origin: function(origin, callback) {
-        console.log('this is the origin', origin);
+        // console.log('this is the origin', origin);
         if (whiteList.indexOf(origin) !== -1 || !origin) {
             callback(null, true);
         } else {
