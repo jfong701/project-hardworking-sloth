@@ -13,6 +13,7 @@ db
 # local env files
 .env.local
 .env.*.local
+!/studyroomfinder/frontend/.env
 
 # Log files
 npm-debug.log*
