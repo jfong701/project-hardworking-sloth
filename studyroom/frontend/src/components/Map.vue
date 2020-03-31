@@ -4,7 +4,7 @@
     <p> Users </p>
     <ul v-for="user in userData" :key="user._id">
       <li>User ID: {{ user.userId }}</li>
-      <li>location: {{ user.location.coordinates.reverse()}}</li>
+      <li>location: {{ user.location.coordinates}}</li>
     </ul>
     <p> Geofences </p>
     <ul v-for="geofence in geofences" :key="geofence._id">
