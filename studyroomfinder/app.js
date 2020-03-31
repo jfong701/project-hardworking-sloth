@@ -845,11 +845,10 @@ function(req, res, next) {
     });
 });
 
-
+const testSecert = "prj_test_sk_0f830970b4e638d159e9a694a03b8a8b23e835ef";
 // TODO: Code below was helped from source below
 // https://www.freecodecamp.org/forum/t/node-express-passing-request-headers-in-a-get-request/235160/4
 app.get('/api/displayUsers/', function(req, res, next) {
-    const testSecert = "prj_test_sk_0f830970b4e638d159e9a694a03b8a8b23e835ef";
 
     let url = "https://api.radar.io/v1/users";
     var options = {
@@ -873,6 +872,59 @@ app.get('/api/displayUsers/', function(req, res, next) {
       });
     });
     radarReq.end();
+});
+
+
+// Lists geofences sorted in decending order at the time they were created
+app.get('/api/geofences/', function(req, res){
+  let url = "https://api.radar.io/v1/geofences";
+  var options = {
+    method: "GET",
+    headers: {
+      "Authorization": testSecert
+    }
+  };
+
+  let dataStr = "";
+
+  let radarReq = https.request(url, options, function(response){
+    response.on("data", chunk => {
+      dataStr += chunk;
+    });
+    response.on("end", () => {
+      console.log("Radar geofences data recieved.");
+      let radarData = JSON.parse(dataStr);
+      let geofences = radarData.geofences;
+      res.end(JSON.stringify(geofences));
+    });
+  });
+  radarReq.end();
+});
+
+// Lists Radar events sorted in decending order at the time they were created
+app.get('/api/events/', function(req, res){
+  let url = "https://api.radar.io/v1/events";
+  var options = {
+    method: "GET",
+    headers: {
+      "Authorization": testSecert
+    }
+  };
+
+  let dataStr = "";
+
+  let radarReq = https.request(url, options, function(response){
+    response.on("data", chunk => {
+      dataStr += chunk;
+    });
+    response.on("end", () => {
+      console.log("Radar events data recieved.");
+      let radarData = JSON.parse(dataStr);
+      let events = radarData.events;
+      res.end(JSON.stringify(events));
+    });
+  });
+  radarReq.end();
 });
 
 // UPDATE ---------------------------------------------------------------------

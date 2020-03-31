@@ -1,19 +1,31 @@
 <template>
   <div>
     <h1>Map</h1>
-    <div>
-      <p>{{ coords }}</p>
-    </div>
+    <p> Users </p>
+    <ul v-for="user in userData" :key="user._id">
+      <li>User ID: {{ user.userId }}</li>
+      <li>location: {{ user.location.coordinates.reverse()}}</li>
+    </ul>
+    <p> Geofences </p>
+    <ul v-for="geofence in geofences" :key="geofence._id">
+      <li>Name: {{ geofence.description }}</li>
+      <li>ID: {{ geofence.externalId}}</li>
+    </ul>
+    <p> Events </p>
+    <ul v-for="event in radarEvents" :key="event._id">
+      <li>{{ event.user.userId }} has entered {{ event.geofence.description}} at {{ event.createdAt }}</li>
+
+    </ul>
     <l-map :zoom="zoom" :center="center" style="height: 850px; width: 1000px">
     <l-tile-layer :options="{ maxZoom: 22 }" :url="url" :attribution="attribution"></l-tile-layer>
-      <l-marker :lat-lng="marker"></l-marker>
+
       <l-circle
         :lat-lng="circle.center"
         :radius="circle.radius"
       >
         <l-popup content="Circle" />
       </l-circle>
-      <l-marker :lat-lng="[43.7839, -79.1874]">
+      <l-marker :lat-lng="testVal">
       <l-icon
           :icon-size="dynamicSize"
           :icon-anchor="dynamicAnchor"
@@ -66,7 +78,11 @@ export default {
       url: 'https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/256/{z}/{x}/{y}@2x?access_token=sk.eyJ1IjoiamZvbmc3MDEiLCJhIjoiY2s3cDExa3lxMDIzNDNrcnNwdjJlbndkZCJ9.n2BIBzqJ9gyJyHjlxnNENw',
       attribution:'&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors',
       marker: L.latLng(43.7839, -79.1874),
-      coords: null,
+      coor: null,
+      userData: null,
+      geofences: null,
+      radarEvents: null,
+      testVal: (this.coor)? this.coor : [43.78, -79.1873],
       iconSize: 24,
     };
   },
@@ -79,12 +95,22 @@ export default {
     }
   },
   created () {
-    this.coords = this.displayUsers();
+    this.userData = this.displayUsers();
+    this.geofences =  this.displayGeofences();
+    this.events = this.displayEvents();
   },
   methods:{
     displayUsers: function () {
       let self = this;
-      Radar.getUsers(self).then(result => this.coords = result.reverse());
+      Radar.getUsers(self).then(result => this.userData = result);
+    },
+    displayGeofences: function(){
+      let self = this;
+      Radar.getGeofences(self).then(result => this.geofences = result);
+    },
+    displayEvents: function(){
+      let self = this;
+      Radar.getRadarEvents(self).then(result => this.radarEvents = result);
     }
   }
 }
