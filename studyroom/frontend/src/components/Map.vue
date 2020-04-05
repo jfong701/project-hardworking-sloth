@@ -26,6 +26,7 @@
         <l-popup content="Circle" />
       </l-circle>
       <l-marker :lat-lng="testVal">
+      <l-popup>User</l-popup>
       <l-icon
           :icon-size="dynamicSize"
           :icon-anchor="dynamicAnchor"
@@ -43,7 +44,7 @@
 </template>
 
 <script>
-import { LMap, LTileLayer, LMarker, LCircle, LRectangle, LIcon} from 'vue2-leaflet';
+import { LMap, LTileLayer, LMarker, LCircle, LRectangle, LIcon, LPopup} from 'vue2-leaflet';
 import L from 'leaflet';
 import Radar from '../js/radar.js';
 
@@ -57,7 +58,8 @@ export default {
     LMarker,
     LCircle,
     LRectangle,
-    LIcon
+    LIcon,
+    LPopup
   },
   data() {
     return {

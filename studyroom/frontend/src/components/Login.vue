@@ -19,7 +19,7 @@ import Login from '../js/login.js';
 import Radar from 'radar-sdk-js';
 // Initializes SDK by passing the publishable key as a string parameter
 // TODO: Set the publishable key to a variable as pass it as a parameter here
-Radar.initialize("prj_test_sk_0f830970b4e638d159e9a694a03b8a8b23e835ef");
+Radar.initialize("prj_test_pk_18eeb5f920e2f5feb64423dbb299211811bc45a0");
     export default {
         name: 'Login',
         data() {
