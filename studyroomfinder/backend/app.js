@@ -4,6 +4,7 @@ const path = require('path');
 const mongo = require('mongodb');
 const assert = require('assert');
 const express = require('express');
+const forceSslHeroku = require('force-ssl-heroku');
 const cors = require('cors');
 const app = express();
 const { body, check, param, validationResult } = require('express-validator');
@@ -45,22 +46,29 @@ const geoIndexForStudySpace = function(db, callback) {
 // express settings
 const PORT = process.env.PORT || 5000;
 
-app.use(serveStatic(path.resolve(__dirname, '..', 'frontend/dist')));
-
-app.listen(PORT, function(err) {
-    if (err) console.log(err);
-    else console.log("HTTP server on http://localhost:%s", PORT);
-});
-
-app.use(session({
+let sessionConfig = {
     secret: `${process.env.SESSION_SECRET}`,
     resave: false,
     saveUninitialized: true,
     cookie: {
-        // secure: true, // only allow cookie over HTTPS connection
+        // NOTE: coookie secure flag is set based on the production environment variable.
         sameSite: 'strict' // restrict cookie from being sent out of this site
     } 
-}));
+};
+
+if (process.env.NODE_ENV === "production") {
+    // force-ssl-heroku redirects unencrypted HTTP requests to HTTPS on Heroku.
+    app.use(forceSslHeroku);
+    sessionConfig.cookie.secure = true; // only allow cookie over HTTPS connection
+}
+app.use(session(sessionConfig));
+
+app.use(serveStatic(path.resolve(__dirname, '..', 'frontend/dist')));
+
+app.listen(PORT, function(err) {
+    if (err) console.log(err);
+    else console.log("HTTPS server on http://localhost:%s", PORT);
+});
 
 app.use(function (req, res, next){
     let username = (req.session.username)? req.session.username : '';
@@ -68,7 +76,7 @@ app.use(function (req, res, next){
           /* httpOnly flag not set, because the front end needs access to the username
           username also is not secret information */
 
-          // secure: true, /* only attach cookies on HTTPS connection*/
+          secure: true, /* only attach cookies on HTTPS connection*/
           sameSite: 'strict', /* restrict cookie from being sent out of this site */
           path : '/', 
           maxAge: 60 * 60 * 24 * 7 // 1 week in number of seconds
@@ -78,7 +86,7 @@ app.use(function (req, res, next){
 });
 
 // use cors package to allow cross origin request from Vue frontend
-const whiteList = ['http://localhost:5000', 'http://localhost:8080', 'https://studyroomfinder.herokuapp.com'];
+const whiteList = ['http://localhost:5000', 'http://localhost:8080', 'https://studyroomfinder.herokuapp.com', 'https://studyroomfinder.me'];
 const corsOptions = {
     origin: function(origin, callback) {
         // console.log('this is the origin', origin);
@@ -495,7 +503,7 @@ app.post('/signin/', [
             // start session
             req.session.username = user._id;
             res.setHeader('Set-Cookie', cookie.serialize('username', user._id, {
-                // secure: true, /* only attach cookies on HTTPS connection*/
+                secure: true, /* only attach cookies on HTTPS connection*/
                 sameSite: 'strict', /* restrict cookie from being sent out of this site */
                 path : '/', 
                 maxAge: 60 * 60 * 24 * 7 // 1 week in number of seconds
@@ -509,7 +517,7 @@ app.post('/signin/', [
 app.get('/signout/', function(req, res, next) {
     req.session.destroy();
     res.setHeader('Set-Cookie', cookie.serialize('username', '', {
-        // secure: true, /* only attach cookies on HTTPS connection*/
+        secure: true, /* only attach cookies on HTTPS connection*/
         sameSite: 'strict', /* restrict cookie from being sent out of this site */
         path : '/', 
         maxAge: 60 * 60 * 24 * 7 // 1 week in number of seconds
