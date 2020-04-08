@@ -4,6 +4,7 @@ const path = require('path');
 const mongo = require('mongodb');
 const assert = require('assert');
 const express = require('express');
+const forceSslHeroku = require('force-ssl-heroku');
 const cors = require('cors');
 const app = express();
 const { body, check, param, validationResult } = require('express-validator');
@@ -12,10 +13,10 @@ const session = require('express-session');
 const bodyParser = require('body-parser');
 const https = require('https');
 const radar = require('radar-sdk-js');
+const serveStatic = require('serve-static');
 
 // to retrieve important variables from a .env file (keeping DB credentials and others out of source code)
-require('dotenv').config();
-
+require('dotenv').config({path: path.resolve(__dirname, '..', '.env')});
 app.use(bodyParser.json());
 
 // time delay used for limiting availability reports, and filtering seeing only reports made for this study space
@@ -45,22 +46,31 @@ const geoIndexForStudySpace = function(db, callback) {
 };
 
 // express settings
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, function(err) {
-    if (err) console.log(err);
-    else console.log("HTTP server on http://localhost:%s", PORT);
-});
-
-app.use(session({
+let sessionConfig = {
     secret: `${process.env.SESSION_SECRET}`,
     resave: false,
     saveUninitialized: true,
     cookie: {
-        // secure: true, // only allow cookie over HTTPS connection
+        // NOTE: coookie secure flag is set based on the production environment variable.
         sameSite: 'strict' // restrict cookie from being sent out of this site
-    }
-}));
+    } 
+};
+
+if (process.env.NODE_ENV === "production") {
+    // force-ssl-heroku redirects unencrypted HTTP requests to HTTPS on Heroku.
+    app.use(forceSslHeroku);
+    sessionConfig.cookie.secure = true; // only allow cookie over HTTPS connection
+}
+app.use(session(sessionConfig));
+
+app.use(serveStatic(path.resolve(__dirname, '..', 'frontend/dist')));
+
+app.listen(PORT, function(err) {
+    if (err) console.log(err);
+    else console.log("HTTPS server on http://localhost:%s", PORT);
+});
 
 app.use(function (req, res, next){
     let username = (req.session.username)? req.session.username : '';
@@ -68,7 +78,7 @@ app.use(function (req, res, next){
           /* httpOnly flag not set, because the front end needs access to the username
           username also is not secret information */
 
-          // secure: true, /* only attach cookies on HTTPS connection*/
+          secure: true, /* only attach cookies on HTTPS connection*/
           sameSite: 'strict', /* restrict cookie from being sent out of this site */
           path : '/',
           maxAge: 60 * 60 * 24 * 7 // 1 week in number of seconds
@@ -78,7 +88,7 @@ app.use(function (req, res, next){
 });
 
 // use cors package to allow cross origin request from Vue frontend
-const whiteList = ['http://localhost:3000', 'http://localhost:8080'];
+const whiteList = ['http://localhost:5000', 'http://localhost:8080', 'https://studyroomfinder.herokuapp.com', 'https://studyroomfinder.me'];
 const corsOptions = {
     origin: function(origin, callback) {
         // console.log('this is the origin', origin);
@@ -91,7 +101,7 @@ const corsOptions = {
     credentials: true
 };
 app.use(cors(corsOptions));
-app.use(express.static('static'));
+
 
 
 
@@ -237,6 +247,48 @@ let isAdmin = function(req, res, next) {
         next();
     });
 };
+
+function polygonVueToGeoJSON(polygonObj) {
+    // latlngs renamed to coordinates, flip the order inside each
+
+    // make a copy of the polygon, don't mutate the original
+    let pClone = JSON.parse(JSON.stringify(polygonObj));
+
+    pClone.latlngs.forEach(c => {
+        let temp = c[0];
+        c[0] = c[1];
+        c[1] = temp;
+    });
+    pClone.coordinates = [pClone.latlngs];
+    delete pClone.latlngs;
+
+    // add type for geoJSON
+    pClone.type = "Polygon";
+
+    return pClone;   
+}
+
+function polygonGeoJSONToVue(polygonObj) {
+    return new Promise((resolve, reject) => {
+        // rename coordinates to latlngs, flip the order inside each
+        // remove the type, Vue knows its a polygon
+        
+        // make a copy of the polygon, don't mutate the original
+        let pClone = JSON.parse(JSON.stringify(polygonObj));
+
+        pClone.coordinates[0].forEach(c => {
+            let temp = c[0];
+            c[0] = c[1];
+            c[1] = temp;
+        });
+
+        pClone.latlngs = pClone.coordinates[0];
+        delete pClone.coordinates;
+        delete pClone.type;
+        
+        resolve(pClone);
+    });
+}
 
 // common DB checks
 // note: studySpaceId is of type mongo.ObjectID
@@ -454,7 +506,7 @@ app.post('/signin/', [
             // start session
             req.session.username = user._id;
             res.setHeader('Set-Cookie', cookie.serialize('username', user._id, {
-                // secure: true, /* only attach cookies on HTTPS connection*/
+                secure: true, /* only attach cookies on HTTPS connection*/
                 sameSite: 'strict', /* restrict cookie from being sent out of this site */
                 path : '/',
                 maxAge: 60 * 60 * 24 * 7 // 1 week in number of seconds
@@ -468,7 +520,7 @@ app.post('/signin/', [
 app.get('/signout/', function(req, res, next) {
     req.session.destroy();
     res.setHeader('Set-Cookie', cookie.serialize('username', '', {
-        // secure: true, /* only attach cookies on HTTPS connection*/
+        secure: true, /* only attach cookies on HTTPS connection*/
         sameSite: 'strict', /* restrict cookie from being sent out of this site */
         path : '/',
         maxAge: 60 * 60 * 24 * 7 // 1 week in number of seconds
@@ -505,13 +557,17 @@ function(req, res, next) {
 
     let imageId = req.body.imageId === undefined ? undefined : req.body.imageId;
 
+    // process the polygon vue entry (lat,long) to follow geoJSON (long, lat)
+    let originalPolygon = req.body.polygon;
+    let polygon = polygonVueToGeoJSON(originalPolygon);
+
     let newStudySpace = new StudySpace(
         undefined,
         req.body.name,
         req.body.description,
         req.body.capacity,
         req.params.buildingName,
-        req.body.polygon,
+        polygon,
         req.body.hasOutlets,
         req.body.wifiQuality,
         req.body.groupFriendly,
@@ -520,30 +576,33 @@ function(req, res, next) {
         new Date(),
         new Date()
     );
+    // return res.json('done');
+    
+    // ensure buildingName and imageId are valid
+    let v = [
+        buildingNameExists(newStudySpace.buildingName)
+    ];
 
-    // ensure buildingName, studySpaceStatusName, and imageId are valid
-    db.collection('buildings').findOne({_id: newStudySpace.buildingName}, function(err, building) {
-        if (err) return res.status(500).end(err.message);
-        if (building === null) { return res.status(400).end('provided buildingName does not exist'); }
+    if (!isNullOrUndef(newStudySpace.imageId)) {
+        v.push(imageIdExists(newStudySpace.imageId));
+    }
 
-        // ensure imageId, if provided, is valid
-        if (isNullOrUndef(newStudySpace.imageId)) {
-            // insert study space
-            db.collection('studySpaces').insertOne(newStudySpace, function(err, result) {
-                if (err) return res.status(500).end(err.message);
-                return res.json(newStudySpace);
+    Promise.all(v).then(() => {
+        // insert study space
+        db.collection('studySpaces').insertOne(newStudySpace, function(err, result) {
+            if (err) return res.status(500).end(err.message);
+
+            new Promise((resolve, reject) => {
+                // let the frontend see the format that it sent in
+                newStudySpace.polygon = originalPolygon;
+                resolve(newStudySpace);
+            }).then((a) => {
+                return res.json(a);
             });
-        } else {
-            db.collection('images').findOne({_id: newStudySpace.imageId}, function(err, image) {
-                if (err) return res.status(500).end(err.message);
-                if (image == null) { return res.status(400).end('provided imageId does not exist'); }
-                // insert study space
-                db.collection('studySpaces').insertOne(newStudySpace, function(err, result) {
-                    if(err) return res.status(500).end(err);
-                    return res.json(newStudySpace);
-                });
-            });
-        }
+        });
+    }).catch((rejectReason) => {
+        // any of the promises rejected, then data is invalid, send a 400 response with the reason
+        return res.status(400).end(rejectReason.message);
     });
 });
 
@@ -667,11 +726,11 @@ app.get('/api/studySpaces/', function(req, res, next) {
 
         /* wrap the update of each study space in a promise, so we are sure that
         all the study spaces in the foreach have processed before returning the JSON */
-        let promises = [];
+        let modifications = [];
 
         // add availability reports to each studySpace result
         studySpaces.forEach((studySpace) => {
-            promises.push(
+            modifications.push(
                 getProcessedAvailabilityReports(studySpace.buildingName, studySpace._id)
                 .then((r) => {
                     studySpace.rawReports = r.rawReports;
@@ -679,10 +738,17 @@ app.get('/api/studySpaces/', function(req, res, next) {
                     studySpace.studySpaceStatusName = r.studySpaceStatusName;
                 })
             );
+            modifications.push(
+                // convert geoJSON to the format Vue Leaflet uses
+                polygonGeoJSONToVue(studySpace.polygon)
+                .then((p) => {
+                    studySpace.polygon = p;
+                })
+            );
         });
 
-        // all availability reports are added
-        Promise.all(promises).then(() => {
+        // all modifications made
+        Promise.all(modifications).then(() => {
             return res.json(studySpaces);
         });
     });
@@ -709,11 +775,12 @@ function(req, res, next) {
         db.collection('studySpaces').find({buildingName: buildingName}).toArray(function(err, studySpaces) {
             if (err) return res.status(500).end(err.message);
 
-            let promises = [];
+            let modifications = [];
 
-            // add availability reports to each studySpace result
+            // for each result, do the following modifications
             studySpaces.forEach((studySpace) => {
-                promises.push(
+                // add availability reports
+                modifications.push(
                     getProcessedAvailabilityReports(studySpace.buildingName, studySpace._id)
                     .then((r) => {
                         studySpace.rawReports = r.rawReports;
@@ -721,10 +788,17 @@ function(req, res, next) {
                         studySpace.studySpaceStatusName = r.studySpaceStatusName;
                     })
                 );
+                modifications.push(
+                    // convert geoJSON to the format Vue Leaflet uses
+                    polygonGeoJSONToVue(studySpace.polygon)
+                    .then((p) => {
+                        studySpace.polygon = p;
+                    })
+                );
             });
 
-            // all availability reports are added
-            Promise.all(promises).then(() => {
+            // all modifications made
+            Promise.all(modifications).then(() => {
                 return res.json(studySpaces);
             });
         });
@@ -757,12 +831,27 @@ function(req, res, next) {
             if (err) return res.status(500).end(err.message);
             if (studySpace === null) return res.status(404).end('Provided studySpace id does not exist');
 
+            let modifications = [];
+
+            // convert geoJSON to the format Vue Leaflet uses
+            modifications.push(
+                polygonGeoJSONToVue(studySpace.polygon)
+                .then((p) => {
+                    studySpace.polygon = p;
+                })
+            );
+
             // add availability reports to the studySpace result
-            getProcessedAvailabilityReports(buildingName, studySpaceId)
-            .then((r) => {
-                studySpace.rawReports = r.rawReports;
-                studySpace.isVerified = r.isVerified;
-                studySpace.studySpaceStatusName = r.studySpaceStatusName;
+            modifications.push(
+                getProcessedAvailabilityReports(buildingName, studySpaceId)
+                .then((r) => {
+                    studySpace.rawReports = r.rawReports;
+                    studySpace.isVerified = r.isVerified;
+                    studySpace.studySpaceStatusName = r.studySpaceStatusName;
+                })
+            );
+
+            Promise.all(modifications).then(() => {
                 return res.json(studySpace);
             });
         });
@@ -831,12 +920,29 @@ function(req, res, next) {
         }
     }, function(err, studySpace) {
         if (err) return res.status(500).end(err.message);
+
+        // apply modifications to studySpace object before returning it
+        let modifications = [];
+
+        // convert geoJSON to the format Vue Leaflet uses
+        modifications.push(
+            polygonGeoJSONToVue(studySpace.polygon)
+            .then((p) => {
+                studySpace.polygon = p;
+            })
+        );
+
         // add availability reports to the studySpace result
-        getProcessedAvailabilityReports(studySpace.buildingName, studySpace._id)
-        .then((r) => {
+        modifications.push(
+            getProcessedAvailabilityReports(studySpace.buildingName, studySpace._id)
+            .then((r) => {
             studySpace.rawReports = r.rawReports;
             studySpace.isVerified = r.isVerified;
             studySpace.studySpaceStatusName = r.studySpaceStatusName;
+            })
+        );
+
+        Promise.all(modifications).then(() => {
             return res.json(studySpace);
         })
         .catch((rejectReason) => {
@@ -958,7 +1064,9 @@ function(req, res, next) {
 
     // because imageId is turned into mongoId,
     // but is also optional, set it here, and then add to studySpace
-    let imageId = req.body.imageId === undefined ? undefined : new mongo.ObjectID(req.body.imageId);
+    let imageId = req.body.imageId === undefined ? undefined : new mongo.ObjectID(req.body.imageId); 
+    let originalPolygon = req.params.polygon;
+    let polygon = polygonVueToGeoJSON(originalPolygon);
 
     let newStudySpace = new StudySpace(
         new mongo.ObjectID(req.params.studySpaceId),
@@ -966,7 +1074,7 @@ function(req, res, next) {
         req.body.description,
         req.body.capacity,
         req.body.buildingName,  // buildingName passed in body is what to update to
-        req.body.polygon,
+        polygon,
         req.body.hasOutlets,
         req.body.wifiQuality,
         req.body.groupFriendly,
@@ -996,7 +1104,14 @@ function(req, res, next) {
         // update study space record
         studySpaces.updateOne({_id: newStudySpace._id}, { $set: newStudySpace }, function(err, result) {
             if (err) return res.status(500).end(err.message);
-            return res.json(newStudySpace);
+            
+            new Promise((resolve, reject) => {
+                // ensure the frontend only sees the polygon in the form that it sent it in as
+                newStudySpace.polygon = originalPolygon;
+                resolve(newStudySpace);
+            }).then((a) => {
+                return res.json(a);
+            });
         });
     })
     .catch(rejectReason => {

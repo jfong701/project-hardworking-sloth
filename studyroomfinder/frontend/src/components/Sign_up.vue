@@ -1,16 +1,21 @@
 <template>
-    <div id="signup">
-        <h1>SIGNUPPP!!!</h1>
-        <p id="err_msg"></p>
-        <form id="signup_form">
-          <div class="sigin-info">
-            <p>Enter your username</p>
-            <input type="text" name="username" v-model="input.username" required/>
-            <p>Enter your password</p>
-            <input type="password" name="password" id="password" v-model="input.password" required>
-          </div>
-          <button type="button" v-on:click="signup()">Sign Up</button>
-        </form>
+    <div>
+    <v-parallax
+    dark
+    src="https://cdn.vuetifyjs.com/images/backgrounds/vbanner.jpg"
+  >
+  <h1>Sign Up!!! </h1>
+    <form>
+    <v-text-field
+      input type="text" name="username" v-model="input.username" required placeholder="Enter Username"
+    ></v-text-field>
+    <v-text-field
+      input type="password" name="password" v-model="input.password" placeholder="Enter Password"
+    ></v-text-field>
+    <v-btn type="button" v-on:click="signup()">Sign Up</v-btn>
+    <v-btn @click="clear">clear</v-btn>
+  </form>
+  </v-parallax>
     </div>
 </template>
 

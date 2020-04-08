@@ -1,0 +1,24 @@
+{
+  "name": "studyroomfinder",
+  "version": "1.0.0",
+  "description": "Script to install and run frontend and backend for studyroomfinder",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "install-backend": "cd backend && npm install",
+    "install-frontend": "cd frontend && npm install",
+    "install-all": "concurrently \"npm run install-backend\" \"npm run install-frontend\"",
+    "install": "npm run install-all",
+    "dev-start-backend": "cd backend && npm run dev",
+    "dev-start-frontend": "cd frontend && npm run serve",
+    "dev-start-all": "concurrently --kill-others \"npm run dev-start-backend\" \"npm run dev-start-frontend\"",
+    "dev": "npm run dev-start-all",
+    "start-backend": "cd backend && npm run start",
+    "start": "npm run start-backend",
+    "build-frontend": "cd frontend && npm run build"
+  },
+  "author": "Hardworking Sloth",
+  "license": "ISC",
+  "dependencies": {
+    "concurrently": "^5.1.0"
+  }
+}
