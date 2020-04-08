@@ -4,7 +4,8 @@
     <p> Users </p>
     <ul v-for="user in userData" :key="user._id">
       <li>User ID: {{ user.userId }}</li>
-      <li>location: {{ user.location.coordinates}}</li>
+      <li>location: {{ user.location.coordinates[1]}}</li>
+      <li>location: {{ user.location.coordinates[0]}}</li>
     </ul>
     <p> Geofences </p>
     <ul v-for="geofence in geofences" :key="geofence._id">
@@ -18,33 +19,39 @@
     </ul>
     <l-map :zoom="zoom" :center="center" style="height: 850px; width: 1000px">
     <l-tile-layer :options="{ maxZoom: 22 }" :url="url" :attribution="attribution"></l-tile-layer>
+      <!--
+      TODO: Adds icons to the map where the locations are the user locations
+      -->
+      <div class="user-markers" v-for="user in userData" :key="user._id">
+        <l-marker :lat-lng="[user.location.coordinates[1], user.location.coordinates[0]]">
+          <l-popup>{{ user.userId }}</l-popup>
+          <l-icon
+              :icon-size="dynamicSize"
+              :icon-anchor="dynamicAnchor"
+              :icon-url="userMapIcon" >
+          </l-icon>
+        </l-marker>
+      </div>
 
-      <l-circle
-        :lat-lng="circle.center"
-        :radius="circle.radius"
-      >
-        <l-popup content="Circle" />
-      </l-circle>
-      <l-marker :lat-lng="testVal">
-      <l-popup>User</l-popup>
-      <l-icon
-          :icon-size="dynamicSize"
-          :icon-anchor="dynamicAnchor"
-          icon-url="https://image.flaticon.com/icons/svg/1738/1738691.svg" >
-      </l-icon>
-      </l-marker>
-      <l-rectangle
-        :bounds="rectangle.bounds"
-        :color="rectangle.color"
-      >
-        <l-popup content="Rectangle" />
-      </l-rectangle>
+      <!--
+      Adds polygons for the buldings on the map from Radar
+      -->
+      <div class="geofences" v-for="geofence in geofences" :key="geofence._id">
+        <l-polygon :lat-lngs="sortPolyCoords(geofence.geometry.coordinates)">
+          <l-popup>
+            {{ geofence.description}} ({{ geofence.externalId }})
+            <ul>
+              <li v-if="geofence.metadata.hasWifi">Wifi included</li>
+            </ul>
+          </l-popup>
+        </l-polygon>
+      </div>
     </l-map>
   </div>
 </template>
 
 <script>
-import { LMap, LTileLayer, LMarker, LCircle, LRectangle, LIcon, LPopup} from 'vue2-leaflet';
+import { LMap, LTileLayer, LMarker, LIcon, LPopup, LPolygon} from 'vue2-leaflet';
 import L from 'leaflet';
 import Radar from '../js/radar.js';
 
@@ -56,10 +63,9 @@ export default {
     LMap,
     LTileLayer,
     LMarker,
-    LCircle,
-    LRectangle,
     LIcon,
-    LPopup
+    LPopup,
+    LPolygon
   },
   data() {
     return {
@@ -75,25 +81,24 @@ export default {
       },
       icon: L.icon({
         iconUrl: 'https://lh3.googleusercontent.com/proxy/ZcYtqlXeuGOHru0UFzvHemclleQK6NVJVYlkEZvTRXrptObMScvVrDwkWr44AeDTE1DdsgrxL8F3',
-        iconAnchor: [16,16]
+        iconAnchor: [64,16]
       }),
       url: 'https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/256/{z}/{x}/{y}@2x?access_token=sk.eyJ1IjoiamZvbmc3MDEiLCJhIjoiY2s3cDExa3lxMDIzNDNrcnNwdjJlbndkZCJ9.n2BIBzqJ9gyJyHjlxnNENw',
       attribution:'&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors',
       marker: L.latLng(43.7839, -79.1874),
-      coor: null,
       userData: null,
       geofences: null,
       radarEvents: null,
-      testVal: (this.coor)? this.coor : [43.78, -79.1873],
-      iconSize: 24,
+      userMapIcon: require('../../media/user_map_icon.png'),
+      iconSize: 32,
     };
   },
   computed: {
     dynamicSize () {
-      return [this.iconSize, this.iconSize * 1.15];
+      return [this.iconSize, this.iconSize];
     },
     dynamicAnchor () {
-      return [this.iconSize / 2, this.iconSize * 1.15];
+      return [this.iconSize / 2, this.iconSize];
     }
   },
   created () {
@@ -113,6 +118,14 @@ export default {
     displayEvents: function(){
       let self = this;
       Radar.getRadarEvents(self).then(result => this.radarEvents = result);
+    },
+    sortPolyCoords: function(coords){
+      var newCoords = [];
+      for(var i=0; i < coords.length; i++){
+        const currCoord = coords[i];
+        newCoords.push(L.GeoJSON.coordsToLatLngs(currCoord));
+      }
+      return newCoords;
     }
   }
 }
