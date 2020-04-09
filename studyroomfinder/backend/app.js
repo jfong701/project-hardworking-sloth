@@ -714,7 +714,49 @@ function(req, res, next) {
 app.get('/api/buildings/', function(req, res, next) {
     db.collection('buildings').find({}).toArray(function(err, buildings) {
         if (err) return res.status(500).end(err.message);
-        return res.json(buildings);
+
+        let allMods = [];
+        buildings.forEach((building) => {
+            // find the study spaces in that building and get the most "free" status
+            // isVerified only true if all study spaces inside are verified
+            building.isVerified = false;
+            building.status = 'Unknown';
+
+            let singleBuildingMods = [];
+
+            allMods.push(
+            new Promise((resolve, reject) => {
+                db.collection('studySpaces').find({buildingName: building._id}).toArray(function(err, studySpaces) {
+                    if (err) return res.status(500).end(err.message);
+
+                    studySpaces.forEach((studySpace) => {
+                        singleBuildingMods.push(
+                            getProcessedAvailabilityReports(studySpace.buildingName, studySpace._id)
+                            .then((r) => {
+                                let status = r.studySpaceStatusName;
+                                if (status === 'Available') {
+                                    building.status = 'Available';
+                                } else if (status === 'Nearly Full' && building.status !== 'Available') {
+                                    building.status = 'Nearly Full';
+                                } else if (status === 'Full' && building.status === 'Unknown') {
+                                    building.status = 'Full';
+                                }
+                                building.isVerified = building.isVerified || r.isVerified ? true : false;
+                            })
+                        );
+                    });
+                    // all modifications made for this building
+                    Promise.all(singleBuildingMods).then(() => {
+                        resolve();
+                    });
+                });
+            }));
+        });
+
+        // modifications complete for all buildings.
+        Promise.all(allMods).then(()=> {
+            return res.json(buildings);
+        });
     });
 });
 
