@@ -722,13 +722,65 @@ app.get('/api/buildings/', function(req, res, next) {
             building.isVerified = false;
             building.status = 'Unknown';
 
-            let singleBuildingMods = [];
-
             allMods.push(
+                new Promise((resolve, reject) => {
+                    let singleBuildingMods = [];
+                    db.collection('studySpaces').find({buildingName: building._id}).toArray(function(err, studySpaces) {
+                        if (err) return res.status(500).end(err.message);
+                        studySpaces.forEach((studySpace) => {
+                            singleBuildingMods.push(
+                                getProcessedAvailabilityReports(studySpace.buildingName, studySpace._id)
+                                .then((r) => {
+                                    let status = r.studySpaceStatusName;
+                                    if (status === 'Available') {
+                                        building.status = 'Available';
+                                    } else if (status === 'Nearly Full' && building.status !== 'Available') {
+                                        building.status = 'Nearly Full';
+                                    } else if (status === 'Full' && building.status === 'Unknown') {
+                                        building.status = 'Full';
+                                    }
+                                    building.isVerified = building.isVerified || r.isVerified ? true : false;
+                                })
+                            );
+                        });
+                        // all modifications made for this building
+                        Promise.all(singleBuildingMods).then(() => {
+                            resolve(building);
+                        });
+                    });
+                })
+            );
+        });
+
+        // modifications complete for all buildings.
+        Promise.all(allMods).then(()=> {
+            return res.json(buildings);
+        })
+        .catch((rejectReason) => {
+            return res.status(400).end(rejectReason.message);
+        });
+    });
+});
+
+// get a single building
+app.get('/api/buildings/:buildingName/', [
+    param('buildingName').isLength({min: 1, max: 200}).trim().escape(),
+], function(req, res, next) {
+    let buildingName = req.params.buildingName;
+    
+    buildingNameExists(buildingName).then(() => {
+        db.collection('buildings').findOne({_id: buildingName}, function(err, building) {
+            if (err) return res.status(500).end(err.message);
+
+            // find the study spaces in that building and get the most "free" status
+            // isVerified only true if all study spaces inside are verified
+            building.isVerified = false;
+            building.status = 'Unknown';
+            
             new Promise((resolve, reject) => {
+                let singleBuildingMods = [];
                 db.collection('studySpaces').find({buildingName: building._id}).toArray(function(err, studySpaces) {
                     if (err) return res.status(500).end(err.message);
-
                     studySpaces.forEach((studySpace) => {
                         singleBuildingMods.push(
                             getProcessedAvailabilityReports(studySpace.buildingName, studySpace._id)
@@ -745,18 +797,18 @@ app.get('/api/buildings/', function(req, res, next) {
                             })
                         );
                     });
-                    // all modifications made for this building
                     Promise.all(singleBuildingMods).then(() => {
-                        resolve();
+                        resolve(building);
                     });
                 });
-            }));
+            })
+            .then(()=> {
+                return res.json(building);
+            });
         });
-
-        // modifications complete for all buildings.
-        Promise.all(allMods).then(()=> {
-            return res.json(buildings);
-        });
+    })
+    .catch((rejectReason) => {
+        return res.status(400).end(rejectReason.message);
     });
 });
 
@@ -792,6 +844,9 @@ app.get('/api/studySpaces/', function(req, res, next) {
         // all modifications made
         Promise.all(modifications).then(() => {
             return res.json(studySpaces);
+        })
+        .catch((rejectReason) => {
+            return res.status(400).end(rejectReason.message);
         });
     });
 });
