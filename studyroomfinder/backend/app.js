@@ -14,6 +14,7 @@ const bodyParser = require('body-parser');
 const https = require('https');
 const radar = require('radar-sdk-js');
 const serveStatic = require('serve-static');
+const validator = require('validator');
 
 // to retrieve important variables from a .env file (keeping DB credentials and others out of source code)
 require('dotenv').config({path: path.resolve(__dirname, '..', '.env')});
@@ -200,6 +201,105 @@ class AvailabilityReport {
     }
 }
 
+// AUTOMATED REQUESTS ---------------------------------------------------------
+
+// Update Radar's building geofences with the latest availability reports
+function updateRadarAvailabilityReports() {
+    // Get the existing geofences
+    const url = 'https://api.radar.io/v1/geofences';
+    const options = {
+        method: 'GET',
+        headers: {
+            'Authorization': radar_key
+        }
+    };
+    let dataStr = '';
+
+    new Promise((resolve, reject) => {
+        https.request(url, options, (response) => {
+            response
+            .on('data', chunk => {
+                dataStr += chunk;
+            })
+            .on('end', () => {
+                let geofences = JSON.parse(dataStr).geofences;
+                resolve(geofences);
+            });
+        })
+        .on('error', err => {
+            console.error(err);
+        })
+        .end();
+    })
+    // foreach geofence, update the metadata to add/update status and isVerified and send a new request.
+    .then(geofences => {
+        // ensure database connection has been established first
+        if (db !== undefined) {
+            geofences.forEach(geofence => {
+                getBuildingOverallAvailability(validator.escape(geofence.externalId))
+                // retrieve the status from backend and add to geofence
+                .then(statusObj => {
+                    // add status to metadata
+                    let md = geofence.metadata;
+                    md.status = statusObj.status;
+                    md.isVerified = statusObj.isVerified;
+                    geofence.metadata = md;
+
+                    // move data to different fields for PUT
+                    if (geofence.type === 'circle' || geofence.type === 'isochrone') {
+                        geofence.coordinates = geofence.geometryCenter.coordinates;
+                    } else if (geofence.type === 'polygon') {
+                        geofence.coordinates = geofence.geometry.coordinates[0];
+                    }
+                    geofence.radius = geofence.geometryRadius;
+
+                    // remove fields we received IN GET, but shouldn't send back in the PUT request
+                    delete geofence._id;
+                    delete geofence.geometryCenter;
+                    delete geofence.live;
+                    delete geofence.createdAt;
+                    delete geofence.updatedAt;
+                    delete geofence.geometry;
+                    delete geofence.geometryRadius;
+                    delete geofence.mode;
+                    return geofence;
+                })
+                // set request headers and send PUT to update this geofence
+                .then((geofence) => {
+                    // format geofence info into querystring to match Radar API
+                    const g = JSON.stringify(geofence);
+                    // configure request headers
+                    const postUrl = 'https://api.radar.io/v1/geofences/' + geofence.tag + '/' + geofence.externalId;
+                    const postOptions = {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': radar_key,
+                            'Content-Type': 'application/json',
+                            'Content-Length': g.length
+                        }
+                    };
+                    // define request
+                    const postReq = https.request(postUrl, postOptions, (response) => {
+                        response
+                        .on('data', chunk => {
+                            console.log('chunk out (' + geofence.externalId + ')', chunk); // log chunks as they go out
+                        });
+                    });
+
+                    postReq.on('error', err => {
+                        console.error(err);
+                    });
+
+                    postReq.write(g); // send the request out
+                    postReq.end();
+                });
+            });
+        }
+    });
+}
+setTimeout(() => {
+    updateRadarAvailabilityReports();
+}, 1000);
 
 // HELPERS --------------------------------------------------------------------
 
@@ -438,7 +538,7 @@ let getBuildingOverallAvailability = function(buildingName) {
             let statusObj = {
                 status: 'Unknown',
                 isVerified: false
-            }
+            };
             db.collection('studySpaces').find({buildingName: buildingName}).toArray(function(err, studySpaces) {
                 if (err) return res.status(500).end(err.message);
                 studySpaces.forEach((studySpace) => {
@@ -465,7 +565,7 @@ let getBuildingOverallAvailability = function(buildingName) {
         .catch((rejectReason) => {
             reject(new Error(rejectReason.message));
         });
-    })
+    });
 };
 
 // SIGN UP/IN/OUT -------------------------------------------------------------
