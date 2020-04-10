@@ -428,6 +428,45 @@ let getProcessedAvailabilityReports = function(buildingName, studySpaceId) {
     });
 };
 
+// get overall availability status of a building based on the study spaces in it.
+// find the study spaces in that building and get the most "free" status
+// isVerified only true if all study spaces inside are verified
+let getBuildingOverallAvailability = function(buildingName) {
+    return new Promise((resolve, reject) => {
+        buildingNameExists(buildingName).then(() => {
+            let singleBuildingMods = [];
+            let statusObj = {
+                status: 'Unknown',
+                isVerified: false
+            }
+            db.collection('studySpaces').find({buildingName: buildingName}).toArray(function(err, studySpaces) {
+                if (err) return res.status(500).end(err.message);
+                studySpaces.forEach((studySpace) => {
+                    singleBuildingMods.push(
+                        getProcessedAvailabilityReports(studySpace.buildingName, studySpace._id)
+                        .then((r) => {
+                            let status = r.studySpaceStatusName;
+                            if (status === 'Available') {
+                                statusObj.status = 'Available';
+                            } else if (status === 'Nearly Full' && statusObj.status !== 'Available') {
+                                statusObj.status = 'Nearly Full';
+                            } else if (status === 'Full' && statusObj.status === 'Unknown') {
+                                statusObj.status = 'Full';
+                            }
+                            statusObj.isVerified = statusObj.isVerified || r.isVerified ? true : false;
+                        })
+                    );
+                });
+                Promise.all(singleBuildingMods).then(() => {
+                    resolve(statusObj);
+                });
+            });
+        })
+        .catch((rejectReason) => {
+            reject(new Error(rejectReason.message));
+        });
+    })
+};
 
 // SIGN UP/IN/OUT -------------------------------------------------------------
 
@@ -718,45 +757,25 @@ app.get('/api/buildings/', function(req, res, next) {
     db.collection('buildings').find({}).toArray(function(err, buildings) {
         if (err) return res.status(500).end(err.message);
 
-        let allMods = [];
+        let buildingsUpdated = [];
         buildings.forEach((building) => {
             // find the study spaces in that building and get the most "free" status
             // isVerified only true if all study spaces inside are verified
             building.isVerified = false;
             building.status = 'Unknown';
 
-            allMods.push(
-                new Promise((resolve, reject) => {
-                    let singleBuildingMods = [];
-                    db.collection('studySpaces').find({buildingName: building._id}).toArray(function(err, studySpaces) {
-                        if (err) return res.status(500).end(err.message);
-                        studySpaces.forEach((studySpace) => {
-                            singleBuildingMods.push(
-                                getProcessedAvailabilityReports(studySpace.buildingName, studySpace._id)
-                                .then((r) => {
-                                    let status = r.studySpaceStatusName;
-                                    if (status === 'Available') {
-                                        building.status = 'Available';
-                                    } else if (status === 'Nearly Full' && building.status !== 'Available') {
-                                        building.status = 'Nearly Full';
-                                    } else if (status === 'Full' && building.status === 'Unknown') {
-                                        building.status = 'Full';
-                                    }
-                                    building.isVerified = building.isVerified || r.isVerified ? true : false;
-                                })
-                            );
-                        });
-                        // all modifications made for this building
-                        Promise.all(singleBuildingMods).then(() => {
-                            resolve(building);
-                        });
-                    });
+            buildingsUpdated.push(
+                getBuildingOverallAvailability(building._id)
+                .then((statusObj)=> {
+                    building.isVerified = statusObj.isVerified;
+                    building.status = statusObj.status;
+                    return building;
                 })
             );
         });
 
         // modifications complete for all buildings.
-        Promise.all(allMods).then(()=> {
+        Promise.all(buildingsUpdated).then(()=> {
             return res.json(buildings);
         })
         .catch((rejectReason) => {
@@ -774,38 +793,14 @@ app.get('/api/buildings/:buildingName/', [
     buildingNameExists(buildingName).then(() => {
         db.collection('buildings').findOne({_id: buildingName}, function(err, building) {
             if (err) return res.status(500).end(err.message);
-
-            // find the study spaces in that building and get the most "free" status
-            // isVerified only true if all study spaces inside are verified
-            building.isVerified = false;
-            building.status = 'Unknown';
-            
-            new Promise((resolve, reject) => {
-                let singleBuildingMods = [];
-                db.collection('studySpaces').find({buildingName: building._id}).toArray(function(err, studySpaces) {
-                    if (err) return res.status(500).end(err.message);
-                    studySpaces.forEach((studySpace) => {
-                        singleBuildingMods.push(
-                            getProcessedAvailabilityReports(studySpace.buildingName, studySpace._id)
-                            .then((r) => {
-                                let status = r.studySpaceStatusName;
-                                if (status === 'Available') {
-                                    building.status = 'Available';
-                                } else if (status === 'Nearly Full' && building.status !== 'Available') {
-                                    building.status = 'Nearly Full';
-                                } else if (status === 'Full' && building.status === 'Unknown') {
-                                    building.status = 'Full';
-                                }
-                                building.isVerified = building.isVerified || r.isVerified ? true : false;
-                            })
-                        );
-                    });
-                    Promise.all(singleBuildingMods).then(() => {
-                        resolve(building);
-                    });
-                });
+    
+            getBuildingOverallAvailability(buildingName)
+            .then((statusObj)=> {
+                building.isVerified = statusObj.isVerified;
+                building.status = statusObj.status;
+                return building;
             })
-            .then(()=> {
+            .then((building) => {
                 return res.json(building);
             });
         });
