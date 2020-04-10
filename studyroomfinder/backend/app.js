@@ -22,6 +22,9 @@ app.use(bodyParser.json());
 // time delay used for limiting availability reports, and filtering seeing only reports made for this study space
 const minutesDelay = 5;
 
+// key for radar.io API
+const radar_key = `${process.env.RADAR_KEY}`;
+
 // mongoDB testing connection on MongoDB Atlas
 const dbName = `${process.env.DB_NAME}`;
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@studyroomfinderdev-ds998.mongodb.net/test?retryWrites=true&w=majority`;
@@ -1048,7 +1051,6 @@ function(req, res, next) {
     });
 });
 
-const testSecert = "prj_test_sk_0f830970b4e638d159e9a694a03b8a8b23e835ef";
 // TODO: Code below was helped from source below
 // https://www.freecodecamp.org/forum/t/node-express-passing-request-headers-in-a-get-request/235160/4
 app.get('/api/displayUsers/', function(req, res, next) {
@@ -1057,7 +1059,7 @@ app.get('/api/displayUsers/', function(req, res, next) {
     var options = {
       method: "GET",
       headers: {
-        "Authorization": testSecert
+        "Authorization": radar_key
       }
     };
 
@@ -1084,7 +1086,7 @@ app.get('/api/geofences/', function(req, res){
   var options = {
     method: "GET",
     headers: {
-      "Authorization": testSecert
+      "Authorization": radar_key
     }
   };
 
@@ -1110,7 +1112,7 @@ app.get('/api/events/', function(req, res){
   var options = {
     method: "GET",
     headers: {
-      "Authorization": testSecert
+      "Authorization": radar_key
     }
   };
 
