@@ -29,7 +29,8 @@ const minutesDelay = 5;
 let nextRadarUpdate = {};
 
 // key for radar.io API
-const radar_key = `${process.env.RADAR_KEY}`;
+const radar_secret_key = `${process.env.RADAR_SECRET_KEY}`;
+const radar_publish_key = `${process.env.RADAR_PUBLISH_KEY}`;
 
 // mongoDB testing connection on MongoDB Atlas
 const dbName = `${process.env.DB_NAME}`;
@@ -488,7 +489,7 @@ function updateRadarAvailabilityReports(buildingName) {
     const options = {
         method: 'GET',
         headers: {
-            'Authorization': radar_key
+            'Authorization': radar_secret_key
         }
     };
     let dataStr = '';
@@ -553,7 +554,7 @@ function updateRadarAvailabilityReports(buildingName) {
                     const postOptions = {
                         method: 'PUT',
                         headers: {
-                            'Authorization': radar_key,
+                            'Authorization': radar_secret_key,
                             'Content-Type': 'application/json',
                             'Content-Length': g.length
                         }
@@ -1183,7 +1184,7 @@ app.get('/api/displayUsers/', function(req, res, next) {
     var options = {
       method: "GET",
       headers: {
-        "Authorization": radar_key
+        "Authorization": radar_secret_key
       }
     };
 
@@ -1210,7 +1211,7 @@ app.get('/api/geofences/', function(req, res){
   var options = {
     method: "GET",
     headers: {
-      "Authorization": radar_key
+      "Authorization": radar_secret_key
     }
   };
 
@@ -1236,7 +1237,7 @@ app.get('/api/events/', function(req, res){
   var options = {
     method: "GET",
     headers: {
-      "Authorization": radar_key
+      "Authorization": radar_secret_key
     }
   };
 
