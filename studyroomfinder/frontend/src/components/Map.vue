@@ -1,6 +1,7 @@
 <template>
   <div>
     <h1>Map</h1>
+    <v-btn type="button" v-on:click="trackOnce()">track</v-btn>
     <p>About {{ userData.userId }}</p>
     <ul>
       <li>Location: {{ sortCoords(userData.location.coordinates) }}</li>
@@ -10,8 +11,7 @@
     <p> Users </p>
     <ul v-for="user in usersData" :key="user._id">
       <li>User ID: {{ user.userId }}</li>
-      <li>location: {{ user.location.coordinates[1]}}</li>
-      <li>location: {{ user.location.coordinates[0]}}</li>
+      <li>location: {{ sortCoords(user.location.coordinates) }}</li>
     </ul>
     <p> Geofences </p>
     <ul v-for="geofence in geofences" :key="geofence._id">
@@ -37,7 +37,7 @@
         </l-marker>
       </dir>
       <!--
-      TODO: Adds icons to the map where the locations are the user locations
+      Adds icons to the map where the locations are the user locations
       -->
       <div class="user-markers" v-for="user in usersData" :key="user._id">
         <l-marker v-if="user.userId != userData.userId && user.geofences.length != 0" :lat-lng="[user.location.coordinates[1], user.location.coordinates[0]]">
@@ -91,14 +91,6 @@ export default {
     return {
       zoom:19,
       center: L.latLng(43.7839, -79.1874),
-      circle: {
-        center: L.latLng(43.7845, -79.1874),
-        radius: 30
-      },
-      rectangle: {
-        bounds: [[43.7839, -79.1872], [43.7843, -79.1860]],
-        color: "red"
-      },
       icon: L.icon({
         iconUrl: 'https://lh3.googleusercontent.com/proxy/ZcYtqlXeuGOHru0UFzvHemclleQK6NVJVYlkEZvTRXrptObMScvVrDwkWr44AeDTE1DdsgrxL8F3',
         iconAnchor: [64,16]
@@ -106,8 +98,8 @@ export default {
       url: 'https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/256/{z}/{x}/{y}@2x?access_token=sk.eyJ1IjoiamZvbmc3MDEiLCJhIjoiY2s3cDExa3lxMDIzNDNrcnNwdjJlbndkZCJ9.n2BIBzqJ9gyJyHjlxnNENw',
       attribution:'&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors',
       marker: L.latLng(43.7839, -79.1874),
-      usersData: null,
-      userData: null,
+      usersData: null,  // Data for all users from Radar
+      userData: null,   // Data for the current user from Radar
       geofences: null,
       radarEvents: null,
       userMapIcon: require('../../media/user_map_icon.png'),
@@ -146,6 +138,8 @@ export default {
       let self = this;
       Radar.getRadarEvents(self).then(result => this.radarEvents = result);
     },
+    // Sorts coordinates from switching latitude 
+    // and longitude for an array of coordinates
     sortPolyCoords: function(coords){
       var newCoords = [];
       for(var i=0; i < coords.length; i++){
@@ -154,8 +148,15 @@ export default {
       }
       return newCoords;
     },
+    // Sorts coordinates from switching latitude 
+    // and longitude for the given coordinate
     sortCoords: function(coord){
       return [coord[1], coord[0]];
+    },
+    // Returns an array of the tracking
+    // data such as geofences and events
+    trackOnce: function(){
+      return Radar.trackOnce();
     }
   }
 }
