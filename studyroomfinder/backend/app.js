@@ -14,6 +14,7 @@ const bodyParser = require('body-parser');
 const https = require('https');
 const radar = require('radar-sdk-js');
 const serveStatic = require('serve-static');
+const validator = require('validator');
 
 // to retrieve important variables from a .env file (keeping DB credentials and others out of source code)
 require('dotenv').config({path: path.resolve(__dirname, '..', '.env')});
@@ -21,6 +22,15 @@ app.use(bodyParser.json());
 
 // time delay used for limiting availability reports, and filtering seeing only reports made for this study space
 const minutesDelay = 5;
+// a dict containing key-values where the key is a buildingName like 'EV'
+// and the value is the timeout for the next radar update of that building
+// allows for timers to be set for when the next automated update for a building should be
+// (when availability resets to Unknown)
+let nextRadarUpdate = {};
+
+// key for radar.io API
+const radar_secret_key = `${process.env.RADAR_SECRET_KEY}`;
+const radar_publish_key = `${process.env.RADAR_PUBLISH_KEY}`;
 
 // mongoDB testing connection on MongoDB Atlas
 const dbName = `${process.env.DB_NAME}`;
@@ -196,7 +206,6 @@ class AvailabilityReport {
         this.updatedAt = updatedAt;
     }
 }
-
 
 // HELPERS --------------------------------------------------------------------
 
@@ -425,6 +434,151 @@ let getProcessedAvailabilityReports = function(buildingName, studySpaceId) {
     });
 };
 
+// get overall availability status of a building based on the study spaces in it.
+// find the study spaces in that building and get the most "free" status
+// isVerified only true if all study spaces inside are verified
+let getBuildingOverallAvailability = function(buildingName) {
+    return new Promise((resolve, reject) => {
+        buildingNameExists(buildingName).then(() => {
+            let singleBuildingMods = [];
+            let statusObj = {
+                status: 'Unknown',
+                isVerified: false
+            };
+            db.collection('studySpaces').find({buildingName: buildingName}).toArray(function(err, studySpaces) {
+                if (err) return res.status(500).end(err.message);
+                studySpaces.forEach((studySpace) => {
+                    singleBuildingMods.push(
+                        getProcessedAvailabilityReports(studySpace.buildingName, studySpace._id)
+                        .then((r) => {
+                            let status = r.studySpaceStatusName;
+                            if (status === 'Available') {
+                                statusObj.status = 'Available';
+                            } else if (status === 'Nearly Full' && statusObj.status !== 'Available') {
+                                statusObj.status = 'Nearly Full';
+                            } else if (status === 'Full' && statusObj.status === 'Unknown') {
+                                statusObj.status = 'Full';
+                            }
+                            statusObj.isVerified = statusObj.isVerified || r.isVerified ? true : false;
+                        })
+                    );
+                });
+                Promise.all(singleBuildingMods).then(() => {
+                    resolve(statusObj);
+                });
+            });
+        })
+        .catch((rejectReason) => {
+            reject(new Error(rejectReason.message));
+        });
+    });
+};
+
+// RADAR HELPERS
+
+// Update Radar's building geofences with the latest availability reports
+// optional parameter buildingName. if buildingName not provided updates all buildings.
+function updateRadarAvailabilityReports(buildingName) {
+    // default: update all geofences.
+    let url = 'https://api.radar.io/v1/geofences';
+    if (buildingName) {
+        // if building name provided, get only that geofence
+        url = 'https://api.radar.io/v1/geofences/building/' + buildingName;
+    }
+    // Get the existing geofences
+    const options = {
+        method: 'GET',
+        headers: {
+            'Authorization': radar_secret_key
+        }
+    };
+    let dataStr = '';
+
+    new Promise((resolve, reject) => {
+        https.request(url, options, (response) => {
+            response
+            .on('data', chunk => {
+                dataStr += chunk;
+            })
+            .on('end', () => {
+                if (buildingName) {
+                    resolve([JSON.parse(dataStr).geofence]);
+                } else {
+                    resolve(JSON.parse(dataStr).geofences);
+                }
+            });
+        })
+        .on('error', err => {
+            console.error(err);
+        })
+        .end();
+    })
+    // foreach geofence, update the metadata to add/update status and isVerified and send a new request.
+    .then(geofences => {
+        // ensure database connection has been established first
+        if (db !== undefined) {
+            geofences.forEach(geofence => {
+                getBuildingOverallAvailability(validator.escape(geofence.externalId))
+                // retrieve the status from backend and add to geofence
+                .then(statusObj => {
+                    // add status to metadata
+                    let md = geofence.metadata;
+                    md.status = statusObj.status;
+                    md.isVerified = statusObj.isVerified;
+                    geofence.metadata = md;
+
+                    // move data to different fields for PUT
+                    if (geofence.type === 'circle' || geofence.type === 'isochrone') {
+                        geofence.coordinates = geofence.geometryCenter.coordinates;
+                    } else if (geofence.type === 'polygon') {
+                        geofence.coordinates = geofence.geometry.coordinates[0];
+                    }
+                    geofence.radius = geofence.geometryRadius;
+
+                    // remove fields we received in GET, but shouldn't send back in the PUT request
+                    delete geofence._id;
+                    delete geofence.geometryCenter;
+                    delete geofence.live;
+                    delete geofence.createdAt;
+                    delete geofence.updatedAt;
+                    delete geofence.geometry;
+                    delete geofence.geometryRadius;
+                    delete geofence.mode;
+                    return geofence;
+                })
+                // set request headers and send PUT to update this geofence
+                .then((geofence) => {
+                    const g = JSON.stringify(geofence);
+                    // configure request headers
+                    const postUrl = 'https://api.radar.io/v1/geofences/' + geofence.tag + '/' + geofence.externalId;
+                    const postOptions = {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': radar_secret_key,
+                            'Content-Type': 'application/json',
+                            'Content-Length': g.length
+                        }
+                    };
+                    // define request
+                    const postReq = https.request(postUrl, postOptions, (response) => {
+                        response
+                        .on('data', chunk => {
+                            console.log('chunk out (' + geofence.externalId + ')', chunk); // log chunks as they go out
+                        });
+                    });
+
+                    postReq.on('error', err => {
+                        console.error(err);
+                    });
+
+                    postReq.write(g); // send the request out
+                    postReq.end();
+                });
+            });
+        }
+    });
+}
+
 
 // SIGN UP/IN/OUT -------------------------------------------------------------
 
@@ -576,7 +730,6 @@ function(req, res, next) {
         new Date(),
         new Date()
     );
-    // return res.json('done');
     
     // ensure buildingName and imageId are valid
     let v = [
@@ -665,13 +818,15 @@ function(req, res, next) {
         new Date()
     );
 
+    let buildingName = req.params.buildingName;
+
     // add availability report
     // Check that all promises resolve, if one of them fails, then send error code
 
     // ensure these criteria are met
     let verifications = [
         studySpaceIdExists(newAR.studySpaceId),
-        studySpaceIdExistsInBuilding(req.params.buildingName, newAR.studySpaceId),
+        studySpaceIdExistsInBuilding(buildingName, newAR.studySpaceId),
         studySpaceStatusNameExists(newAR.studySpaceStatusName)
     ];
 
@@ -690,7 +845,24 @@ function(req, res, next) {
             if (recentReport === null || ((new Date() - recentReport.createdAt)/(60*1000) > minutesDelay)) {
                 availabilityReports.insertOne(newAR, function(err, result) {
                     if (err) return res.status(500).end(err.message);
-                    return res.json(newAR);
+                    
+                    // update availability report on radar
+                    new Promise((resolve, reject) => {
+                        resolve(updateRadarAvailabilityReports(buildingName));
+                    }).then(() => {
+                        // if there is an existing timer for this study space, remove it so we can extend it
+                        if (nextRadarUpdate && nextRadarUpdate[buildingName]) {
+                            clearTimeout(nextRadarUpdate[buildingName]);
+                        }
+                    })
+                    .then(() => {
+                        // set the next update period for this building (minutesDelay minutes from now)
+                        nextRadarUpdate[buildingName] = setTimeout(() => {
+                            updateRadarAvailabilityReports(buildingName);
+                        }, minutesDelay * 60 * 1000);
+                    }).then(() => {
+                        return res.json(newAR);
+                    });
                 });
             } else {
                 // compute time since last report, and tell them when they can report again
@@ -715,45 +887,25 @@ app.get('/api/buildings/', function(req, res, next) {
     db.collection('buildings').find({}).toArray(function(err, buildings) {
         if (err) return res.status(500).end(err.message);
 
-        let allMods = [];
+        let buildingsUpdated = [];
         buildings.forEach((building) => {
             // find the study spaces in that building and get the most "free" status
             // isVerified only true if all study spaces inside are verified
             building.isVerified = false;
             building.status = 'Unknown';
 
-            allMods.push(
-                new Promise((resolve, reject) => {
-                    let singleBuildingMods = [];
-                    db.collection('studySpaces').find({buildingName: building._id}).toArray(function(err, studySpaces) {
-                        if (err) return res.status(500).end(err.message);
-                        studySpaces.forEach((studySpace) => {
-                            singleBuildingMods.push(
-                                getProcessedAvailabilityReports(studySpace.buildingName, studySpace._id)
-                                .then((r) => {
-                                    let status = r.studySpaceStatusName;
-                                    if (status === 'Available') {
-                                        building.status = 'Available';
-                                    } else if (status === 'Nearly Full' && building.status !== 'Available') {
-                                        building.status = 'Nearly Full';
-                                    } else if (status === 'Full' && building.status === 'Unknown') {
-                                        building.status = 'Full';
-                                    }
-                                    building.isVerified = building.isVerified || r.isVerified ? true : false;
-                                })
-                            );
-                        });
-                        // all modifications made for this building
-                        Promise.all(singleBuildingMods).then(() => {
-                            resolve(building);
-                        });
-                    });
+            buildingsUpdated.push(
+                getBuildingOverallAvailability(building._id)
+                .then((statusObj)=> {
+                    building.isVerified = statusObj.isVerified;
+                    building.status = statusObj.status;
+                    return building;
                 })
             );
         });
 
         // modifications complete for all buildings.
-        Promise.all(allMods).then(()=> {
+        Promise.all(buildingsUpdated).then(()=> {
             return res.json(buildings);
         })
         .catch((rejectReason) => {
@@ -771,38 +923,14 @@ app.get('/api/buildings/:buildingName/', [
     buildingNameExists(buildingName).then(() => {
         db.collection('buildings').findOne({_id: buildingName}, function(err, building) {
             if (err) return res.status(500).end(err.message);
-
-            // find the study spaces in that building and get the most "free" status
-            // isVerified only true if all study spaces inside are verified
-            building.isVerified = false;
-            building.status = 'Unknown';
-            
-            new Promise((resolve, reject) => {
-                let singleBuildingMods = [];
-                db.collection('studySpaces').find({buildingName: building._id}).toArray(function(err, studySpaces) {
-                    if (err) return res.status(500).end(err.message);
-                    studySpaces.forEach((studySpace) => {
-                        singleBuildingMods.push(
-                            getProcessedAvailabilityReports(studySpace.buildingName, studySpace._id)
-                            .then((r) => {
-                                let status = r.studySpaceStatusName;
-                                if (status === 'Available') {
-                                    building.status = 'Available';
-                                } else if (status === 'Nearly Full' && building.status !== 'Available') {
-                                    building.status = 'Nearly Full';
-                                } else if (status === 'Full' && building.status === 'Unknown') {
-                                    building.status = 'Full';
-                                }
-                                building.isVerified = building.isVerified || r.isVerified ? true : false;
-                            })
-                        );
-                    });
-                    Promise.all(singleBuildingMods).then(() => {
-                        resolve(building);
-                    });
-                });
+    
+            getBuildingOverallAvailability(buildingName)
+            .then((statusObj)=> {
+                building.isVerified = statusObj.isVerified;
+                building.status = statusObj.status;
+                return building;
             })
-            .then(()=> {
+            .then((building) => {
                 return res.json(building);
             });
         });
@@ -1048,7 +1176,6 @@ function(req, res, next) {
     });
 });
 
-const testSecert = "prj_test_sk_0f830970b4e638d159e9a694a03b8a8b23e835ef";
 // TODO: Code below was helped from source below
 // https://www.freecodecamp.org/forum/t/node-express-passing-request-headers-in-a-get-request/235160/4
 app.get('/api/displayUsers/', function(req, res, next) {
@@ -1057,7 +1184,7 @@ app.get('/api/displayUsers/', function(req, res, next) {
     var options = {
       method: "GET",
       headers: {
-        "Authorization": testSecert
+        "Authorization": radar_secret_key
       }
     };
 
@@ -1084,7 +1211,7 @@ app.get('/api/geofences/', function(req, res){
   var options = {
     method: "GET",
     headers: {
-      "Authorization": testSecert
+      "Authorization": radar_secret_key
     }
   };
 
@@ -1110,7 +1237,7 @@ app.get('/api/events/', function(req, res){
   var options = {
     method: "GET",
     headers: {
-      "Authorization": testSecert
+      "Authorization": radar_secret_key
     }
   };
 
