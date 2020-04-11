@@ -289,9 +289,9 @@ function updateRadarAvailabilityReports(buildingName) {
                     // define request
                     const postReq = https.request(postUrl, postOptions, (response) => {
                         response
-                        // .on('data', chunk => {
-                        //     console.log('chunk out (' + geofence.externalId + ')', chunk); // log chunks as they go out
-                        // });
+                        .on('data', chunk => {
+                            console.log('chunk out (' + geofence.externalId + ')', chunk); // log chunks as they go out
+                        });
                     });
 
                     postReq.on('error', err => {
@@ -310,7 +310,7 @@ function updateRadarAvailabilityReports(buildingName) {
 // and the value is the timeout for the next radar update of that building
 // allows for timers to be set for when the next automated update for a building should be
 // (when availability resets to Unknown)
-let nextUpdate = {
+let nextRadarUpdate = {
 
 };
 
@@ -731,7 +731,6 @@ function(req, res, next) {
         new Date(),
         new Date()
     );
-    // return res.json('done');
     
     // ensure buildingName and imageId are valid
     let v = [
@@ -853,13 +852,13 @@ function(req, res, next) {
                         resolve(updateRadarAvailabilityReports(buildingName));
                     }).then(() => {
                         // if there is an existing timer for this study space, remove it so we can extend it
-                        if (nextUpdate && nextUpdate[buildingName]) {
-                            clearTimeout(nextUpdate[buildingName]);
+                        if (nextRadarUpdate && nextRadarUpdate[buildingName]) {
+                            clearTimeout(nextRadarUpdate[buildingName]);
                         }
                     })
                     .then(() => {
                         // set the next update period for this building (minutesDelay minutes from now)
-                        nextUpdate[buildingName] = setTimeout(() => {
+                        nextRadarUpdate[buildingName] = setTimeout(() => {
                             updateRadarAvailabilityReports(buildingName);
                         }, minutesDelay * 60 * 1000);
                     }).then(() => {
