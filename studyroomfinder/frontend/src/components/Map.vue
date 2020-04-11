@@ -1,8 +1,14 @@
 <template>
   <div>
     <h1>Map</h1>
+    <p>About {{ userData.userId }}</p>
+    <ul>
+      <li>Location: {{ sortCoords(userData.location.coordinates) }}</li>
+      <li>Device type: {{ userData.deviceType }} </li>
+      <li>Agent: {{ userData.userAgent }}</li>
+    </ul>
     <p> Users </p>
-    <ul v-for="user in userData" :key="user._id">
+    <ul v-for="user in usersData" :key="user._id">
       <li>User ID: {{ user.userId }}</li>
       <li>location: {{ user.location.coordinates[1]}}</li>
       <li>location: {{ user.location.coordinates[0]}}</li>
@@ -19,11 +25,22 @@
     </ul>
     <l-map :zoom="zoom" :center="center" style="height: 850px; width: 1000px">
     <l-tile-layer :options="{ maxZoom: 22 }" :url="url" :attribution="attribution"></l-tile-layer>
+      <!-- Adds a unique icon for the user in the session -->
+      <dir class="current-user-marker">
+        <l-marker :lat-lng="sortCoords(userData.location.coordinates)">
+          <l-popup>{{userData.userId}}</l-popup>
+          <l-icon
+              :icon-size="dynamicSize"
+              :icon-anchor="dynamicAnchor"
+              :icon-url="currUserMapIcon" >
+          </l-icon>
+        </l-marker>
+      </dir>
       <!--
       TODO: Adds icons to the map where the locations are the user locations
       -->
-      <div class="user-markers" v-for="user in userData" :key="user._id">
-        <l-marker :lat-lng="[user.location.coordinates[1], user.location.coordinates[0]]">
+      <div class="user-markers" v-for="user in usersData" :key="user._id">
+        <l-marker v-if="user.userId != userData.userId && user.geofences.length != 0" :lat-lng="[user.location.coordinates[1], user.location.coordinates[0]]">
           <l-popup>{{ user.userId }}</l-popup>
           <l-icon
               :icon-size="dynamicSize"
@@ -42,6 +59,9 @@
             {{ geofence.description}} ({{ geofence.externalId }})
             <ul>
               <li v-if="geofence.metadata.hasWifi">Wifi included</li>
+              <li>Status: {{ geofence.metadata.status }} </li>
+              <li v-if="geofence.metadata.isVerified">Verified</li>
+              <li v-else>Not verifed</li>
             </ul>
           </l-popup>
         </l-polygon>
@@ -86,10 +106,12 @@ export default {
       url: 'https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/256/{z}/{x}/{y}@2x?access_token=sk.eyJ1IjoiamZvbmc3MDEiLCJhIjoiY2s3cDExa3lxMDIzNDNrcnNwdjJlbndkZCJ9.n2BIBzqJ9gyJyHjlxnNENw',
       attribution:'&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors',
       marker: L.latLng(43.7839, -79.1874),
+      usersData: null,
       userData: null,
       geofences: null,
       radarEvents: null,
       userMapIcon: require('../../media/user_map_icon.png'),
+      currUserMapIcon: require('../../media/current_user_map_icon.png'),
       iconSize: 32,
     };
   },
@@ -102,14 +124,19 @@ export default {
     }
   },
   created () {
-    this.userData = this.displayUsers();
+    this.usersData = this.displayUsers();
+    this.userData = this.displayUser();
     this.geofences =  this.displayGeofences();
     this.events = this.displayEvents();
   },
   methods:{
     displayUsers: function () {
       let self = this;
-      Radar.getUsers(self).then(result => this.userData = result);
+      Radar.getUsers(self).then(result => this.usersData = result);
+    },
+    displayUser: function (){
+      let self = this;
+      Radar.getUser(self).then(result => this.userData = result);
     },
     displayGeofences: function(){
       let self = this;
@@ -126,6 +153,9 @@ export default {
         newCoords.push(L.GeoJSON.coordsToLatLngs(currCoord));
       }
       return newCoords;
+    },
+    sortCoords: function(coord){
+      return [coord[1], coord[0]];
     }
   }
 }
