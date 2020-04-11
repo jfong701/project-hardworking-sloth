@@ -1,10 +1,48 @@
 <template>
     <div>
-        <h1>Study Room Finder</h1>
-            <!-- TODO: Add any missing header elements -->
-            <input type="search" name="search bar" id="search_bar">
-            <router-link  to="/SignUp" replace>Sign up</router-link>
-            <router-link to="/Login" replace>Sign out</router-link>
+  <v-card
+    class="mx-auto overflow-hidden"
+    height="70"
+  >
+    <v-app-bar
+      color="deep-purple"
+      dark
+    >
+      <v-toolbar-title>Study Room Finder</v-toolbar-title>
+    </v-app-bar>
+
+    <v-navigation-drawer
+      v-model="drawer"
+      absolute
+      temporary
+    >
+      <v-list
+        nav
+        dense
+      >
+        <v-list-item-group
+          v-model="group"
+          active-class="deep-purple--text text--accent-4"
+        >
+          <v-list-item>
+            <v-list-item-icon>
+              <v-icon>mdi-home</v-icon>
+                <router-link to="/Login" replace><v-list-item-title>Sign Out</v-list-item-title></router-link>
+            </v-list-item-icon>
+          </v-list-item>
+          <v-list-item>
+            <v-list-item-icon>
+              <v-icon>mdi-account</v-icon>
+              <router-link  to="/SignUp" replace></router-link>
+            </v-list-item-icon>
+            <v-list-item-title>Profile</v-list-item-title>
+          </v-list-item>
+
+        </v-list-item-group>
+      </v-list>
+    </v-navigation-drawer>
+  </v-card>
+    <!-- -->
         <!-- TODO: Create map -->
         <div class="map">
         <Map/>
@@ -24,7 +62,8 @@ import Map from "./Map.vue";
                 input: {
                     username: "",
                     password: ""
-                }
+                },
+                drawer: false
             }
         },
         components: {

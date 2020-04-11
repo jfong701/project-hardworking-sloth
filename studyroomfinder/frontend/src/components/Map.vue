@@ -1,4 +1,32 @@
 <template>
+  <div class="wrapper">
+    <div>
+        <ejs-sidebar id="default-sidebar" ref="sidebar" :type="type" :width="width" :animate="animate" :enableRtl="enableRtl">
+            <div class="center-align">
+                <form>
+                    <div>
+                    <label for="Building Space">:Building Space</label>
+                    <input v-model="building" type="building" class="form-control" placeholder="building">
+                    </div>
+                    <div>
+                    <label for="Study Space">:Study Space</label>
+                    <input v-model="studySpaceName" type="studySpaceName" class="form-control" placeholder="studySpaceName">
+                    </div>
+                    <div>
+                    <label for="Availability">:Availability</label>
+                    <input v-model="availability" type="availability" class="form-control" placeholder="available/nearlyFull/full">
+                    </div>
+                </form>
+            </div>
+            <ul v-for="studySpace in studySpaces" :key="studySpace._id">
+            <li>User ID: {{studySpace}}</li>
+            </ul>
+            <div class="center-align">
+               <v-btn type="button"  v-on:click="report()">Report</v-btn>
+            </div>
+        </ejs-sidebar>
+        </div>
+        
   <div>
     <h1>Map</h1>
     <p> Users </p>
@@ -43,10 +71,12 @@
             <ul>
               <li v-if="geofence.metadata.hasWifi">Wifi included</li>
             </ul>
+            <button ejs-button id="toggle"  class="e-btn e-info" v-on:click="toggleClick">Report Study Space</button>
           </l-popup>
         </l-polygon>
       </div>
     </l-map>
+  </div>
   </div>
 </template>
 
@@ -54,8 +84,12 @@
 import { LMap, LTileLayer, LMarker, LIcon, LPopup, LPolygon} from 'vue2-leaflet';
 import L from 'leaflet';
 import Radar from '../js/radar.js';
+import Vue from 'vue';
+import { SidebarPlugin } from '@syncfusion/ej2-vue-navigations';
+import Report from '../js/report.js';
 
 
+Vue.use(SidebarPlugin);
 
 export default {
   name: 'Map',
@@ -65,10 +99,14 @@ export default {
     LMarker,
     LIcon,
     LPopup,
-    LPolygon
-  },
+    LPolygon,
+    },
   data() {
     return {
+      animate:false,
+            enableRtl: true,
+            width:'280px',
+            type:'Push',
       zoom:19,
       center: L.latLng(43.7839, -79.1874),
       circle: {
@@ -91,6 +129,7 @@ export default {
       radarEvents: null,
       userMapIcon: require('../../media/user_map_icon.png'),
       iconSize: 32,
+      studySpaces: null,
     };
   },
   computed: {
@@ -105,8 +144,23 @@ export default {
     this.userData = this.displayUsers();
     this.geofences =  this.displayGeofences();
     this.events = this.displayEvents();
+    this.studySpaces = this.displayStudySpaces();
   },
   methods:{
+    toggleClick :function() {
+          this.$refs.sidebar.toggle();
+        },
+        closeClick: function() {
+         this.$refs.sidebar.hide();
+        },
+    report: function() {
+            let self = this;
+			Report.report(self, this.building, this.studySpaceName, this.availability);
+           },
+    displayStudySpaces: function () {
+      let self = this;
+      Report.getStudySpaces(self).then(result => this.studySpaces = result);
+    },
     displayUsers: function () {
       let self = this;
       Radar.getUsers(self).then(result => this.userData = result);
@@ -131,8 +185,52 @@ export default {
 }
 </script>
 
-<!-- Add "scoped" attribute to limit CSS to this component only -->
 <style>
+@import "../../node_modules/@syncfusion/ej2-base/styles/material.css";
+@import "../../node_modules/@syncfusion/ej2-buttons/styles/material.css";
+@import "../../node_modules/@syncfusion/ej2-vue-navigations/styles/material.css";
+
+
+.center-align {
+    text-align: center;
+    font-size: 20px;
+    padding: 20px;
+}
+
+.title {
+    text-align: center;
+    font-size: 20px;
+    padding: 15px;
+}
+
+.sub-title {
+    text-align: center;
+    font-size: 16px;
+    padding: 10px;
+}
+
+.center {
+    text-align: center;
+    display: none;
+    font-size: 13px;
+    font-weight: 400;
+    margin-top: 20px;
+}
+
+#default-sidebar {
+    background-color: rgb(25, 118, 210);
+    color: #ffffff;
+}
+
+.close-btn:hover {
+    color: #fafafa;
+}
+
+::placeholder {
+  color: black;
+}
+
+
 
 
 </style>

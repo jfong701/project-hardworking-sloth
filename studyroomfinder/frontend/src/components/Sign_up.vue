@@ -13,7 +13,6 @@
       input type="password" name="password" v-model="input.password" placeholder="Enter Password"
     ></v-text-field>
     <v-btn type="button" v-on:click="signup()">Sign Up</v-btn>
-    <v-btn @click="clear">clear</v-btn>
   </form>
   </v-parallax>
     </div>
