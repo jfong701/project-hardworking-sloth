@@ -289,9 +289,9 @@ function updateRadarAvailabilityReports(buildingName) {
                     // define request
                     const postReq = https.request(postUrl, postOptions, (response) => {
                         response
-                        .on('data', chunk => {
-                            console.log('chunk out (' + geofence.externalId + ')', chunk); // log chunks as they go out
-                        });
+                        // .on('data', chunk => {
+                        //     console.log('chunk out (' + geofence.externalId + ')', chunk); // log chunks as they go out
+                        // });
                     });
 
                     postReq.on('error', err => {
@@ -305,9 +305,14 @@ function updateRadarAvailabilityReports(buildingName) {
         }
     });
 }
-setTimeout(() => {
-    updateRadarAvailabilityReports();
-}, 1000);
+
+// a dict containing key-values where the key is a buildingName like 'EV'
+// and the value is the timeout for the next radar update of that building
+// allows for timers to be set for when the next automated update for a building should be
+// (when availability resets to Unknown)
+let nextUpdate = {
+
+};
 
 // HELPERS --------------------------------------------------------------------
 
@@ -844,8 +849,22 @@ function(req, res, next) {
                     if (err) return res.status(500).end(err.message);
                     
                     // update availability report on radar
-                    updateRadarAvailabilityReports(buildingName);
-                    return res.json(newAR);
+                    new Promise((resolve, reject) => {
+                        resolve(updateRadarAvailabilityReports(buildingName));
+                    }).then(() => {
+                        // if there is an existing timer for this study space, remove it so we can extend it
+                        if (nextUpdate && nextUpdate[buildingName]) {
+                            clearTimeout(nextUpdate[buildingName]);
+                        }
+                    })
+                    .then(() => {
+                        // set the next update period for this building (minutesDelay minutes from now)
+                        nextUpdate[buildingName] = setTimeout(() => {
+                            updateRadarAvailabilityReports(buildingName);
+                        }, minutesDelay * 60 * 1000);
+                    }).then(() => {
+                        return res.json(newAR);
+                    });
                 });
             } else {
                 // compute time since last report, and tell them when they can report again
