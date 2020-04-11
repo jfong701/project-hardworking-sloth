@@ -22,6 +22,11 @@ app.use(bodyParser.json());
 
 // time delay used for limiting availability reports, and filtering seeing only reports made for this study space
 const minutesDelay = 5;
+// a dict containing key-values where the key is a buildingName like 'EV'
+// and the value is the timeout for the next radar update of that building
+// allows for timers to be set for when the next automated update for a building should be
+// (when availability resets to Unknown)
+let nextRadarUpdate = {};
 
 // key for radar.io API
 const radar_key = `${process.env.RADAR_KEY}`;
@@ -200,119 +205,6 @@ class AvailabilityReport {
         this.updatedAt = updatedAt;
     }
 }
-
-// AUTOMATED REQUESTS ---------------------------------------------------------
-
-// Update Radar's building geofences with the latest availability reports
-// optional parameter buildingName. if buildingName not provided updates all buildings.
-function updateRadarAvailabilityReports(buildingName) {
-    // default: update all geofences.
-    let url = 'https://api.radar.io/v1/geofences';
-    if (buildingName) {
-        // if building name provided, get only that geofence
-        url = 'https://api.radar.io/v1/geofences/building/' + buildingName;
-    }
-    // Get the existing geofences
-    const options = {
-        method: 'GET',
-        headers: {
-            'Authorization': radar_key
-        }
-    };
-    let dataStr = '';
-
-    new Promise((resolve, reject) => {
-        https.request(url, options, (response) => {
-            response
-            .on('data', chunk => {
-                dataStr += chunk;
-            })
-            .on('end', () => {
-                if (buildingName) {
-                    resolve([JSON.parse(dataStr).geofence]);
-                } else {
-                    resolve(JSON.parse(dataStr).geofences);
-                }
-            });
-        })
-        .on('error', err => {
-            console.error(err);
-        })
-        .end();
-    })
-    // foreach geofence, update the metadata to add/update status and isVerified and send a new request.
-    .then(geofences => {
-        // ensure database connection has been established first
-        if (db !== undefined) {
-            geofences.forEach(geofence => {
-                getBuildingOverallAvailability(validator.escape(geofence.externalId))
-                // retrieve the status from backend and add to geofence
-                .then(statusObj => {
-                    // add status to metadata
-                    let md = geofence.metadata;
-                    md.status = statusObj.status;
-                    md.isVerified = statusObj.isVerified;
-                    geofence.metadata = md;
-
-                    // move data to different fields for PUT
-                    if (geofence.type === 'circle' || geofence.type === 'isochrone') {
-                        geofence.coordinates = geofence.geometryCenter.coordinates;
-                    } else if (geofence.type === 'polygon') {
-                        geofence.coordinates = geofence.geometry.coordinates[0];
-                    }
-                    geofence.radius = geofence.geometryRadius;
-
-                    // remove fields we received in GET, but shouldn't send back in the PUT request
-                    delete geofence._id;
-                    delete geofence.geometryCenter;
-                    delete geofence.live;
-                    delete geofence.createdAt;
-                    delete geofence.updatedAt;
-                    delete geofence.geometry;
-                    delete geofence.geometryRadius;
-                    delete geofence.mode;
-                    return geofence;
-                })
-                // set request headers and send PUT to update this geofence
-                .then((geofence) => {
-                    const g = JSON.stringify(geofence);
-                    // configure request headers
-                    const postUrl = 'https://api.radar.io/v1/geofences/' + geofence.tag + '/' + geofence.externalId;
-                    const postOptions = {
-                        method: 'PUT',
-                        headers: {
-                            'Authorization': radar_key,
-                            'Content-Type': 'application/json',
-                            'Content-Length': g.length
-                        }
-                    };
-                    // define request
-                    const postReq = https.request(postUrl, postOptions, (response) => {
-                        response
-                        .on('data', chunk => {
-                            console.log('chunk out (' + geofence.externalId + ')', chunk); // log chunks as they go out
-                        });
-                    });
-
-                    postReq.on('error', err => {
-                        console.error(err);
-                    });
-
-                    postReq.write(g); // send the request out
-                    postReq.end();
-                });
-            });
-        }
-    });
-}
-
-// a dict containing key-values where the key is a buildingName like 'EV'
-// and the value is the timeout for the next radar update of that building
-// allows for timers to be set for when the next automated update for a building should be
-// (when availability resets to Unknown)
-let nextRadarUpdate = {
-
-};
 
 // HELPERS --------------------------------------------------------------------
 
@@ -580,6 +472,112 @@ let getBuildingOverallAvailability = function(buildingName) {
         });
     });
 };
+
+// RADAR HELPERS
+
+// Update Radar's building geofences with the latest availability reports
+// optional parameter buildingName. if buildingName not provided updates all buildings.
+function updateRadarAvailabilityReports(buildingName) {
+    // default: update all geofences.
+    let url = 'https://api.radar.io/v1/geofences';
+    if (buildingName) {
+        // if building name provided, get only that geofence
+        url = 'https://api.radar.io/v1/geofences/building/' + buildingName;
+    }
+    // Get the existing geofences
+    const options = {
+        method: 'GET',
+        headers: {
+            'Authorization': radar_key
+        }
+    };
+    let dataStr = '';
+
+    new Promise((resolve, reject) => {
+        https.request(url, options, (response) => {
+            response
+            .on('data', chunk => {
+                dataStr += chunk;
+            })
+            .on('end', () => {
+                if (buildingName) {
+                    resolve([JSON.parse(dataStr).geofence]);
+                } else {
+                    resolve(JSON.parse(dataStr).geofences);
+                }
+            });
+        })
+        .on('error', err => {
+            console.error(err);
+        })
+        .end();
+    })
+    // foreach geofence, update the metadata to add/update status and isVerified and send a new request.
+    .then(geofences => {
+        // ensure database connection has been established first
+        if (db !== undefined) {
+            geofences.forEach(geofence => {
+                getBuildingOverallAvailability(validator.escape(geofence.externalId))
+                // retrieve the status from backend and add to geofence
+                .then(statusObj => {
+                    // add status to metadata
+                    let md = geofence.metadata;
+                    md.status = statusObj.status;
+                    md.isVerified = statusObj.isVerified;
+                    geofence.metadata = md;
+
+                    // move data to different fields for PUT
+                    if (geofence.type === 'circle' || geofence.type === 'isochrone') {
+                        geofence.coordinates = geofence.geometryCenter.coordinates;
+                    } else if (geofence.type === 'polygon') {
+                        geofence.coordinates = geofence.geometry.coordinates[0];
+                    }
+                    geofence.radius = geofence.geometryRadius;
+
+                    // remove fields we received in GET, but shouldn't send back in the PUT request
+                    delete geofence._id;
+                    delete geofence.geometryCenter;
+                    delete geofence.live;
+                    delete geofence.createdAt;
+                    delete geofence.updatedAt;
+                    delete geofence.geometry;
+                    delete geofence.geometryRadius;
+                    delete geofence.mode;
+                    return geofence;
+                })
+                // set request headers and send PUT to update this geofence
+                .then((geofence) => {
+                    const g = JSON.stringify(geofence);
+                    // configure request headers
+                    const postUrl = 'https://api.radar.io/v1/geofences/' + geofence.tag + '/' + geofence.externalId;
+                    const postOptions = {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': radar_key,
+                            'Content-Type': 'application/json',
+                            'Content-Length': g.length
+                        }
+                    };
+                    // define request
+                    const postReq = https.request(postUrl, postOptions, (response) => {
+                        response
+                        .on('data', chunk => {
+                            console.log('chunk out (' + geofence.externalId + ')', chunk); // log chunks as they go out
+                        });
+                    });
+
+                    postReq.on('error', err => {
+                        console.error(err);
+                    });
+
+                    postReq.write(g); // send the request out
+                    postReq.end();
+                });
+            });
+        }
+    });
+}
+
 
 // SIGN UP/IN/OUT -------------------------------------------------------------
 
