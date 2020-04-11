@@ -204,9 +204,15 @@ class AvailabilityReport {
 // AUTOMATED REQUESTS ---------------------------------------------------------
 
 // Update Radar's building geofences with the latest availability reports
-function updateRadarAvailabilityReports() {
+// optional parameter buildingName. if buildingName not provided updates all buildings.
+function updateRadarAvailabilityReports(buildingName) {
+    // default: update all geofences.
+    let url = 'https://api.radar.io/v1/geofences';
+    if (buildingName) {
+        // if building name provided, get only that geofence
+        url = 'https://api.radar.io/v1/geofences/building/' + buildingName;
+    }
     // Get the existing geofences
-    const url = 'https://api.radar.io/v1/geofences';
     const options = {
         method: 'GET',
         headers: {
@@ -222,8 +228,11 @@ function updateRadarAvailabilityReports() {
                 dataStr += chunk;
             })
             .on('end', () => {
-                let geofences = JSON.parse(dataStr).geofences;
-                resolve(geofences);
+                if (buildingName) {
+                    resolve([JSON.parse(dataStr).geofence]);
+                } else {
+                    resolve(JSON.parse(dataStr).geofences);
+                }
             });
         })
         .on('error', err => {
@@ -253,7 +262,7 @@ function updateRadarAvailabilityReports() {
                     }
                     geofence.radius = geofence.geometryRadius;
 
-                    // remove fields we received IN GET, but shouldn't send back in the PUT request
+                    // remove fields we received in GET, but shouldn't send back in the PUT request
                     delete geofence._id;
                     delete geofence.geometryCenter;
                     delete geofence.live;
@@ -266,7 +275,6 @@ function updateRadarAvailabilityReports() {
                 })
                 // set request headers and send PUT to update this geofence
                 .then((geofence) => {
-                    // format geofence info into querystring to match Radar API
                     const g = JSON.stringify(geofence);
                     // configure request headers
                     const postUrl = 'https://api.radar.io/v1/geofences/' + geofence.tag + '/' + geofence.externalId;
@@ -807,13 +815,15 @@ function(req, res, next) {
         new Date()
     );
 
+    let buildingName = req.params.buildingName;
+
     // add availability report
     // Check that all promises resolve, if one of them fails, then send error code
 
     // ensure these criteria are met
     let verifications = [
         studySpaceIdExists(newAR.studySpaceId),
-        studySpaceIdExistsInBuilding(req.params.buildingName, newAR.studySpaceId),
+        studySpaceIdExistsInBuilding(buildingName, newAR.studySpaceId),
         studySpaceStatusNameExists(newAR.studySpaceStatusName)
     ];
 
@@ -832,6 +842,9 @@ function(req, res, next) {
             if (recentReport === null || ((new Date() - recentReport.createdAt)/(60*1000) > minutesDelay)) {
                 availabilityReports.insertOne(newAR, function(err, result) {
                     if (err) return res.status(500).end(err.message);
+                    
+                    // update availability report on radar
+                    updateRadarAvailabilityReports(buildingName);
                     return res.json(newAR);
                 });
             } else {
