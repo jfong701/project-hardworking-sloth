@@ -116,6 +116,7 @@ app.use(cors(corsOptions));
 // WEBSOCKETS
 // based on readme examples from: https://github.com/websockets/ws
 
+
 const wss = new WebSocket.Server({ server: appListen });
 wss.on('connection', function connection(ws, request, client) {
     // console.log('someone connected!');
@@ -139,7 +140,7 @@ wss.on('connection', function connection(ws, request, client) {
                 });
             });
         }
-    }, 5000);
+    }, 10000);
 
 });
 /* ***** Data types *****
