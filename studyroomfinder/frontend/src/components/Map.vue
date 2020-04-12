@@ -177,6 +177,7 @@ export default {
     this.userData = this.displayUser();
     this.geofences =  this.displayGeofences();
     this.events = this.displayEvents();
+    this.studySpaces = this.displayStudySpaces();
     this.trackData =  setInterval(() => {
       this.trackOnce();
     }, 15000); 
