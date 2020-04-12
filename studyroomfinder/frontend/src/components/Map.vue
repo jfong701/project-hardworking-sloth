@@ -221,13 +221,11 @@ export default {
 
       const WS_URL = process.env.VUE_APP_WS_URL || 'ws://localhost:5000';
 
-      console.log('socket made');
       const socket = new WebSocket(WS_URL);
       self.socket = socket;
 
       // listening for updates from the backend
       socket.addEventListener('message', function(event) {
-        console.log(event.data);
         // nextTick - fire after next Vue DOM update cycle
         self.$nextTick(function() {
 
