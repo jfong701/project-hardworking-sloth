@@ -43,7 +43,10 @@
     <div v-if="usersData">
       <ul  v-for="user in usersData" :key="user._id">
         <li>User ID: {{ user.userId }}</li>
-        <li>location: {{ sortCoords(user.location.coordinates) }}</li>
+        <li v-if="user.geofences.length > 0">
+          Currently in {{ user.geofences[0].description }}
+        </li>
+        <li>Updated at: {{ user.actualUpdatedAt }}</li>
       </ul>
     </div>
     
@@ -57,7 +60,7 @@
     
     <p> Events </p>
     <div v-if="radarEvents">
-      <ul v-for="event in radarEvents" :key="event._id">
+      <ul v-for="event in radarEvents.slice(0,5)" :key="event._id">
         <li>{{ event.user.userId }} has entered {{ event.geofence.description}} at {{ event.createdAt }}</li>
       </ul>
     </div>
