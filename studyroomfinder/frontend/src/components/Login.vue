@@ -23,10 +23,12 @@
       input type="password" name="password" v-model="input.password" placeholder="Password"
     ></v-text-field>
     <v-btn type="button" v-on:click="login()">Login</v-btn>
-    <v-btn @click="clear">clear</v-btn>
   </form>
   </v-parallax>
-    </div>
+  <footer>
+      <router-link to="/Credits" replace><v-list-item-title>Credits</v-list-item-title></router-link>
+  </footer>
+  </div>
 </template>
 
 
