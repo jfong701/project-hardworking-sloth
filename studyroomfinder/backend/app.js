@@ -113,7 +113,7 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-// WEBSOCKETS
+// WEBSOCKETS -----------------------------------------------------------------
 // based on readme examples from: https://github.com/websockets/ws
 
 let nextBroadcastWS;
