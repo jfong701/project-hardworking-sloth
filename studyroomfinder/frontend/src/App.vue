@@ -21,8 +21,8 @@
 
 <style>
     body {
-        background-color: rgba(16, 85, 141, 0.986);
-        /* font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif */
+        background-color: rgba(125, 197, 255, 1);
+        font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif
     }
     h1 {
         padding: 0;
