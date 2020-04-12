@@ -17,6 +17,11 @@
       <li>{{ event.user.userId }} has entered {{ event.geofence.description}} at {{ event.createdAt }}</li>
 
     </ul>
+    <p> WebSockets Test </p>
+    <p>{{studySpaces}}</p>
+    <ul v-for="building in buildings" :key="building._id">
+      <li>{{building._id}}</li>
+    </ul>
     <l-map :zoom="zoom" :center="center" style="height: 850px; width: 1000px">
     <l-tile-layer :options="{ maxZoom: 22 }" :url="url" :attribution="attribution"></l-tile-layer>
       <!--
@@ -37,7 +42,7 @@
       Adds polygons for the buldings on the map from Radar
       -->
       <div class="geofences" v-for="geofence in geofences" :key="geofence._id">
-        <l-polygon :lat-lngs="sortPolyCoords(geofence.geometry.coordinates)">
+        <l-polygon :lat-lngs="sortPolyCoords(geofence.geometry.coordinates)" :color="geofence.color">
           <l-popup>
             {{ geofence.description}} ({{ geofence.externalId }})
             <ul>
@@ -91,6 +96,8 @@ export default {
       radarEvents: null,
       userMapIcon: require('../../media/user_map_icon.png'),
       iconSize: 32,
+      buildings: null,
+      socket: null,
     };
   },
   computed: {
@@ -101,12 +108,77 @@ export default {
       return [this.iconSize / 2, this.iconSize];
     }
   },
+  beforeDestroy() {
+    // if this component is being destroyed from DOM, close the socket connection.
+    this.closeSocket();
+  },
   created () {
     this.userData = this.displayUsers();
     this.geofences =  this.displayGeofences();
     this.events = this.displayEvents();
+    this.setupSocket();
   },
   methods:{
+    closeSocket: function() {
+      let self = this;
+      if (self.socket) {
+        self.socket.close();
+      }
+    },
+    setupSocket: function() {
+      let self = this;
+
+      // helper function for unescaping html from: https://github.com/validatorjs/validator.js/blob/master/src/lib/unescape.js
+      // used because the names of buildings are escaped in the database
+      function unescape(str) {
+        return (str.replace(/&amp;/g, '&')
+          .replace(/&quot;/g, '"')
+          .replace(/&#x27;/g, "'")
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&#x2F;/g, '/')
+          .replace(/&#x5C;/g, '\\')
+          .replace(/&#96;/g, '`'));
+      }
+
+      const WS_URL = process.env.VUE_APP_WS_URL || 'ws://localhost:5000';
+
+      const socket = new WebSocket(WS_URL);
+      self.socket = socket;
+
+      // listening for updates from the backend
+      socket.addEventListener('message', function(event) {
+        // nextTick - fire after next Vue DOM update cycle
+        self.$nextTick(function() {
+          // set buildings based on data from websocket.
+          self.buildings = JSON.parse(event.data);
+
+          // match up buildings and geofences by common names, and set colours
+          if (self.buildings && self.geofences) {
+            for (let i = 0; i < self.geofences.length; i++) {
+              for (let j = 0; j < self.buildings.length; j++) {
+                if (unescape(self.buildings[j]._id) === self.geofences[i].externalId) {
+                  // colours from: https://flatuicolors.com/palette/defo
+                  switch(self.buildings[j].status) {
+                    case "Nearly Full":
+                      self.geofences[i].color = "#f1c40f";
+                      break;
+                    case "Full":
+                      self.geofences[i].color = "#c0392b";
+                      break;
+                    case "Available":
+                      self.geofences[i].color = "#27ae60";
+                      break;
+                    default:
+                      self.geofences[i].color = "#7f8c8d";  
+                  }
+                }
+              }
+            }
+          }
+        });
+      });
+    },
     displayUsers: function () {
       let self = this;
       Radar.getUsers(self).then(result => this.userData = result);
