@@ -18,7 +18,7 @@
 
     </ul>
     <p> WebSockets Test </p>
-    <p>{{studySpaces}}</p>
+    <!-- <p>{{studySpaces}}</p> -->
     <ul v-for="building in buildings" :key="building._id">
       <li>{{building._id}}</li>
     </ul>
@@ -150,27 +150,31 @@ export default {
       socket.addEventListener('message', function(event) {
         // nextTick - fire after next Vue DOM update cycle
         self.$nextTick(function() {
-          // set buildings based on data from websocket.
-          self.buildings = JSON.parse(event.data);
 
-          // match up buildings and geofences by common names, and set colours
-          if (self.buildings && self.geofences) {
-            for (let i = 0; i < self.geofences.length; i++) {
-              for (let j = 0; j < self.buildings.length; j++) {
-                if (unescape(self.buildings[j]._id) === self.geofences[i].externalId) {
-                  // colours from: https://flatuicolors.com/palette/defo
-                  switch(self.buildings[j].status) {
-                    case "Nearly Full":
-                      self.geofences[i].color = "#f1c40f";
-                      break;
-                    case "Full":
-                      self.geofences[i].color = "#c0392b";
-                      break;
-                    case "Available":
-                      self.geofences[i].color = "#27ae60";
-                      break;
-                    default:
-                      self.geofences[i].color = "#7f8c8d";  
+          // only set buildings if not a WS ping. (pings are sent to prevent connection sleep on Heroku);
+          if (event.data !== "ping") {
+            // set buildings based on data from websocket.
+            self.buildings = JSON.parse(event.data);
+
+            // match up buildings and geofences by common names, and set colours
+            if (self.buildings && self.geofences) {
+              for (let i = 0; i < self.geofences.length; i++) {
+                for (let j = 0; j < self.buildings.length; j++) {
+                  if (unescape(self.buildings[j]._id) === self.geofences[i].externalId) {
+                    // colours from: https://flatuicolors.com/palette/defo
+                    switch(self.buildings[j].status) {
+                      case "Nearly Full":
+                        self.geofences[i].color = "#f1c40f";
+                        break;
+                      case "Full":
+                        self.geofences[i].color = "#c0392b";
+                        break;
+                      case "Available":
+                        self.geofences[i].color = "#27ae60";
+                        break;
+                      default:
+                        self.geofences[i].color = "#7f8c8d";  
+                    }
                   }
                 }
               }

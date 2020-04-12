@@ -116,31 +116,51 @@ app.use(cors(corsOptions));
 // WEBSOCKETS
 // based on readme examples from: https://github.com/websockets/ws
 
+let nextBroadcastWS;
 
 const wss = new WebSocket.Server({ server: appListen });
 wss.on('connection', function connection(ws, request, client) {
     // console.log('someone connected!');
 
-    // when receiving incoming message
-    ws.on('message', function incoming(message) {
-        // console.log('received: %s', message);
-        // ws.send(`You just sent in: ${message}`);
+    // on inital connection, send them getAllBuildings
+    getAllBuildings().then(res => {
+        ws.send(res);
     });
 
-
-    setInterval(() => {
-        // if there are clients connected run updates every second, otherwise do nothing
-        // console.log(wss.clients.size);
-        if (wss.clients.size > 0) {
+    // when receiving incoming message, it means they just reported
+    // availability, send everyone back getAllBuildings to update their map
+    // and minutesDelay minutes later send them back another update
+    ws.on('message', function incoming(message) {
+        if (message === "availabilityUpdated") {
             getAllBuildings().then(res => {
-                // console.log(res)
-                // client.send(res);
                 wss.clients.forEach(function each(client) {
                     client.send(res);
                 });
+            }).then(() => {
+                // reset the existing timer if it exists
+                if (nextBroadcastWS) {
+                    clearTimeout(nextBroadcastWS);
+                }
+            }).then(() => {
+                // set the timer for 5 minutes to broadcast again everyone a building update
+                nextBroadcastWS = setTimeout(() => {
+                    getAllBuildings().then(res => {
+                        wss.clients.forEach(function each(client) {
+                            client.send(res);
+                        })
+                    })
+                }, minutesDelay * 60 * 1000);
             });
         }
-    }, 10000);
+    });
+
+    // send "ping" every 29 seconds to prevent any open connections from sleeping on Heroku
+    setInterval(() => {
+        // if there are any clients connected.
+        wss.clients.forEach(function each(client) {
+            client.send("ping");
+        });
+    }, 29000);
 
 });
 /* ***** Data types *****
