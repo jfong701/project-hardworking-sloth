@@ -19,7 +19,7 @@ export default {
       },
 
 	report: function(event, building, studySpace, studySpaceStatusName) {
-		api().post('/api/buildings/' + building + '/studySpaces/' + studySpace + '/availabilityReports/', {studySpaceStatusName: studySpaceStatusName})
+		return api().post('/api/buildings/' + building + '/studySpaces/' + studySpace + '/availabilityReports/', {studySpaceStatusName: studySpaceStatusName})
 		.catch(function(e) {
             if (e.response) {
                 event.message = e.response.data;

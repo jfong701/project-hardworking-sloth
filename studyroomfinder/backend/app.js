@@ -15,6 +15,7 @@ const https = require('https');
 const radar = require('radar-sdk-js');
 const serveStatic = require('serve-static');
 const validator = require('validator');
+const WebSocket = require('ws');
 
 // to retrieve important variables from a .env file (keeping DB credentials and others out of source code)
 require('dotenv').config({path: path.resolve(__dirname, '..', '.env')});
@@ -71,13 +72,13 @@ let sessionConfig = {
 if (process.env.NODE_ENV === "production") {
     // force-ssl-heroku redirects unencrypted HTTP requests to HTTPS on Heroku.
     app.use(forceSslHeroku);
-    sessionConfig.cookie.secure = true; // only allow cookie over HTTPS connection
+    // sessionConfig.cookie.secure = true; // only allow cookie over HTTPS connection
 }
 app.use(session(sessionConfig));
 
 app.use(serveStatic(path.resolve(__dirname, '..', 'frontend/dist')));
 
-app.listen(PORT, function(err) {
+const appListen = app.listen(PORT, function(err) {
     if (err) console.log(err);
     else console.log("HTTPS server on http://localhost:%s", PORT);
 });
@@ -112,9 +113,57 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
+// WEBSOCKETS -----------------------------------------------------------------
+// based on readme examples from: https://github.com/websockets/ws
 
+let nextBroadcastWS;
 
+const wss = new WebSocket.Server({ server: appListen });
+wss.on('connection', function connection(ws, request, client) {
+    // console.log('someone connected!');
 
+    // on inital connection, send them getAllBuildings
+    getAllBuildings().then(res => {
+        // wait a little bit to allow DOM to setup first.
+        setTimeout(() => {ws.send(res);}, 1000);
+    });
+
+    // when receiving incoming message, it means they just reported
+    // availability, send everyone back getAllBuildings to update their map
+    // and minutesDelay minutes later send them back another update
+    ws.on('message', function incoming(message) {
+        if (message === "availabilityUpdated") {
+            getAllBuildings().then(res => {
+                wss.clients.forEach(function each(client) {
+                    client.send(res);
+                });
+            }).then(() => {
+                // reset the existing timer if it exists
+                if (nextBroadcastWS) {
+                    clearTimeout(nextBroadcastWS);
+                }
+            }).then(() => {
+                // set the timer for 5 minutes to broadcast again everyone a building update
+                nextBroadcastWS = setTimeout(() => {
+                    getAllBuildings().then(res => {
+                        wss.clients.forEach(function each(client) {
+                            client.send(res);
+                        })
+                    })
+                }, minutesDelay * 60 * 1000);
+            });
+        }
+    });
+
+    // send "ping" every 29 seconds to prevent any open connections from sleeping on Heroku
+    setInterval(() => {
+        // if there are any clients connected.
+        wss.clients.forEach(function each(client) {
+            client.send("ping");
+        });
+    }, 29000);
+
+});
 /* ***** Data types *****
     building objects:
         - (String) _id (the name of the building)   (PK)
@@ -942,37 +991,50 @@ function(req, res){
 // READ -----------------------------------------------------------------------
 
 
-// get all buildings
+// get all buildings moved to outside function to allow access by websockets
 app.get('/api/buildings/', function(req, res, next) {
-    db.collection('buildings').find({}).toArray(function(err, buildings) {
-        if (err) return res.status(500).end(err.message);
-
-        let buildingsUpdated = [];
-        buildings.forEach((building) => {
-            // find the study spaces in that building and get the most "free" status
-            // isVerified only true if all study spaces inside are verified
-            building.isVerified = false;
-            building.status = 'Unknown';
-
-            buildingsUpdated.push(
-                getBuildingOverallAvailability(building._id)
-                .then((statusObj)=> {
-                    building.isVerified = statusObj.isVerified;
-                    building.status = statusObj.status;
-                    return building;
-                })
-            );
-        });
-
-        // modifications complete for all buildings.
-        Promise.all(buildingsUpdated).then(()=> {
-            return res.json(buildings);
-        })
-        .catch((rejectReason) => {
-            return res.status(400).end(rejectReason.message);
+    return getAllBuildings(req, res, next);
+});
+function getAllBuildings(req, res, next) {
+    return new Promise((resolve, reject) => {
+        db.collection('buildings').find({}).toArray(function(err, buildings) {
+            if (err) return res.status(500).end(err.message);
+    
+            let buildingsUpdated = [];
+            buildings.forEach((building) => {
+                // find the study spaces in that building and get the most "free" status
+                // isVerified only true if all study spaces inside are verified
+                building.isVerified = false;
+                building.status = 'Unknown';
+    
+                buildingsUpdated.push(
+                    getBuildingOverallAvailability(building._id)
+                    .then((statusObj)=> {
+                        building.isVerified = statusObj.isVerified;
+                        building.status = statusObj.status;
+                        return building;
+                    })
+                );
+            });
+    
+            // modifications complete for all buildings.
+            Promise.all(buildingsUpdated).then(()=> {
+                if (res) {
+                    return res.json(buildings);
+                } else {
+                    resolve(JSON.stringify(buildings));
+                }
+            })
+            .catch((rejectReason) => {
+                if (res) {
+                    return res.status(400).end(rejectReason.message);
+                } else {
+                    return JSON.stringify(rejectReason.message);
+                }
+            });
         });
     });
-});
+}
 
 // get a single building
 app.get('/api/buildings/:buildingName/', [
@@ -1003,41 +1065,57 @@ app.get('/api/buildings/:buildingName/', [
 
 // get all study spaces
 app.get('/api/studySpaces/', function(req, res, next) {
-    db.collection('studySpaces').find({}).toArray(function(err, studySpaces) {
-        if (err) return res.status(500).end(err.message);
+    return getAllStudySpaces(req, res, next);
+});
 
-        /* wrap the update of each study space in a promise, so we are sure that
-        all the study spaces in the foreach have processed before returning the JSON */
-        let modifications = [];
+// moved to helper to allow access for websockets
+function getAllStudySpaces(req, res, next) {
+    return new Promise((resolve, reject) => {
+        db.collection('studySpaces').find({}).toArray(function(err, studySpaces) {
+            if (err) return res.status(500).end(err.message);
 
-        // add availability reports to each studySpace result
-        studySpaces.forEach((studySpace) => {
-            modifications.push(
-                getProcessedAvailabilityReports(studySpace.buildingName, studySpace._id)
-                .then((r) => {
-                    studySpace.rawReports = r.rawReports;
-                    studySpace.isVerified = r.isVerified;
-                    studySpace.studySpaceStatusName = r.studySpaceStatusName;
-                })
-            );
-            modifications.push(
-                // convert geoJSON to the format Vue Leaflet uses
-                polygonGeoJSONToVue(studySpace.polygon)
-                .then((p) => {
-                    studySpace.polygon = p;
-                })
-            );
-        });
+            /* wrap the update of each study space in a promise, so we are sure that
+            all the study spaces in the foreach have processed before returning the JSON */
+            let modifications = [];
 
-        // all modifications made
-        Promise.all(modifications).then(() => {
-            return res.json(studySpaces);
-        })
-        .catch((rejectReason) => {
-            return res.status(400).end(rejectReason.message);
+            // add availability reports to each studySpace result
+            studySpaces.forEach((studySpace) => {
+                modifications.push(
+                    getProcessedAvailabilityReports(studySpace.buildingName, studySpace._id)
+                    .then((r) => {
+                        studySpace.rawReports = r.rawReports;
+                        studySpace.isVerified = r.isVerified;
+                        studySpace.studySpaceStatusName = r.studySpaceStatusName;
+                    })
+                );
+                modifications.push(
+                    // convert geoJSON to the format Vue Leaflet uses
+                    polygonGeoJSONToVue(studySpace.polygon)
+                    .then((p) => {
+                        studySpace.polygon = p;
+                    })
+                );
+            });
+
+            // all modifications made
+            Promise.all(modifications).then(() => {
+                console.log(modifications);
+                if (res) {
+                    return res.json(studySpaces);
+                } else {
+                    resolve(JSON.stringify(studySpaces));
+                }
+            })
+            .catch((rejectReason) => {
+                if (res) {
+                    return res.status(400).end(rejectReason.message);
+                } else {
+                    return JSON.stringify(rejectReason.message);
+                }
+            });
         });
     });
-});
+}
 
 
 // get all study spaces in a building
