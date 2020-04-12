@@ -992,7 +992,7 @@ function(req, res){
 
 
 // get all buildings moved to outside function to allow access by websockets
-app.get('/api/buildings/', function(req, res, next) {
+app.get('/api/buildings/', isAuthenticated, function(req, res, next) {
     return getAllBuildings(req, res, next);
 });
 function getAllBuildings(req, res, next) {
@@ -1037,7 +1037,7 @@ function getAllBuildings(req, res, next) {
 }
 
 // get a single building
-app.get('/api/buildings/:buildingName/', [
+app.get('/api/buildings/:buildingName/', isAuthenticated, [
     param('buildingName').isLength({min: 1, max: 200}).trim().escape(),
 ], function(req, res, next) {
     let buildingName = req.params.buildingName;
@@ -1064,7 +1064,7 @@ app.get('/api/buildings/:buildingName/', [
 
 
 // get all study spaces
-app.get('/api/studySpaces/', function(req, res, next) {
+app.get('/api/studySpaces/', isAuthenticated, function(req, res, next) {
     return getAllStudySpaces(req, res, next);
 });
 
@@ -1120,6 +1120,7 @@ function getAllStudySpaces(req, res, next) {
 
 // get all study spaces in a building
 app.get('/api/buildings/:buildingName/studySpaces/',
+isAuthenticated,
 [
     param('buildingName').isLength({min: 1, max: 200}).trim().escape(),
 ],
@@ -1173,6 +1174,7 @@ function(req, res, next) {
 
 // get a study space by buildingName, and studyspace id
 app.get('/api/buildings/:buildingName/studySpaces/:studySpaceId/',
+isAuthenticated,
 [
     param('buildingName').isLength({min: 1, max: 200}).trim().escape(),
     param('studySpaceId').isMongoId()
@@ -1226,6 +1228,7 @@ function(req, res, next) {
 
 // get the availability reports made for a study space in the last X minutes
 app.get('/api/buildings/:buildingName/studySpaces/:studySpaceId/availabilityReports/',
+isAuthenticated,
 [
     param('buildingName').isLength({min: 1, max: 200}).trim().escape(),
     param('studySpaceId').isMongoId()
@@ -1251,6 +1254,7 @@ function(req, res, next) {
 // given a point location in geoJSON, get the closest study space
 // TODO: return the point only if the study space is available
 app.get('/api/closestStudySpace/',
+isAuthenticated,
 [
     body('point').exists().not().isEmpty()
 ],
