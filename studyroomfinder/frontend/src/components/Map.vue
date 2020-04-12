@@ -41,7 +41,7 @@
     
     <p> Users </p>
     <div v-if="usersData">
-      <ul  v-for="user in usersData" :key="user._id">
+      <ul  v-for="user in usersData.slice(0,10)" :key="user._id">
         <li>User ID: {{ user.userId }}</li>
         <li v-if="user.geofences.length > 0">
           Currently in {{ user.geofences[0].description }}
