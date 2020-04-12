@@ -98,7 +98,7 @@
       -->
       <div v-if="geofences">
         <div class="geofences" v-for="geofence in geofences" :key="geofence._id">
-          <l-polygon :lat-lngs="sortPolyCoords(geofence.geometry.coordinates)">
+          <l-polygon :lat-lngs="sortPolyCoords(geofence.geometry.coordinates)" :color="geofence.color">
             <l-popup>
               {{ geofence.description}} ({{ geofence.externalId }})
               <ul>
