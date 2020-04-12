@@ -25,7 +25,10 @@
     <v-btn type="button" v-on:click="login()">Login</v-btn>
   </form>
   </v-parallax>
-    </div>
+  <footer>
+      <router-link to="/Credits" replace><v-list-item-title>Credits</v-list-item-title></router-link>
+  </footer>
+  </div>
 </template>
 
 

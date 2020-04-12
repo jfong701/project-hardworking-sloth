@@ -8,6 +8,8 @@
       color="deep-purple"
       dark
     >
+      <v-app-bar-nav-icon @click="drawer = true"></v-app-bar-nav-icon>
+
       <v-toolbar-title>Study Room Finder</v-toolbar-title>
     </v-app-bar>
 
@@ -20,25 +22,12 @@
         nav
         dense
       >
-        <v-list-item-group
-          v-model="group"
-          active-class="deep-purple--text text--accent-4"
-        >
           <v-list-item>
             <v-list-item-icon>
               <v-icon>mdi-home</v-icon>
                 <router-link to="/Login" replace><v-list-item-title>Sign Out</v-list-item-title></router-link>
             </v-list-item-icon>
           </v-list-item>
-          <v-list-item>
-            <v-list-item-icon>
-              <v-icon>mdi-account</v-icon>
-              <router-link  to="/SignUp" replace></router-link>
-            </v-list-item-icon>
-            <v-list-item-title>Profile</v-list-item-title>
-          </v-list-item>
-
-        </v-list-item-group>
       </v-list>
     </v-navigation-drawer>
   </v-card>
@@ -48,7 +37,7 @@
         <Map/>
         </div>
         <footer>
-              <a href="./credits.html">credits</a>
+              <router-link to="/Credits" replace><v-list-item-title>Credits</v-list-item-title></router-link>
         </footer>
     </div>
 </template>

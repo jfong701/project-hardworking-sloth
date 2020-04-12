@@ -3,6 +3,8 @@ import VueRouter from 'vue-router'
 import LoginComponent from "../components/Login.vue"
 import SignUpComponent from "../components/Sign_up.vue"
 import HomepageComponent from "../components/Homepage.vue"
+import CreditsComponent from "../components/Credits.vue"
+
 
 
 Vue.use(VueRouter)
@@ -29,6 +31,11 @@ export default new VueRouter({
             path: "/SignUp",
             name: "SignUp",
             component: SignUpComponent
+        },
+        {
+            path: "/Credits",
+            name: "Credits",
+            component: CreditsComponent
         }
     ]
 })

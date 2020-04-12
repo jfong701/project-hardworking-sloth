@@ -9,8 +9,7 @@ export default {
           for (var i = 0; i < response.data.length; i ++){
             result.push(response.data[i]);
           }
-          console.log(result);
-          return response;
+          return result;
         })
         .catch(function(e) {
                 if (e.response) {
@@ -19,8 +18,8 @@ export default {
             })
       },
 
-	report: function(event, building, studySpace, availability) {
-		api().post('/api/buildings/' + building + '/studySpaces/' + studySpace + '/availabilityReports/', {availability: availability})
+	report: function(event, building, studySpace, studySpaceStatusName) {
+		api().post('/api/buildings/' + building + '/studySpaces/' + studySpace + '/availabilityReports/', {studySpaceStatusName: studySpaceStatusName})
 		.catch(function(e) {
             if (e.response) {
                 event.message = e.response.data;

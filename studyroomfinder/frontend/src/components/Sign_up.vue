@@ -15,6 +15,9 @@
     <v-btn type="button" v-on:click="signup()">Sign Up</v-btn>
   </form>
   </v-parallax>
+  <footer>
+      <router-link to="/Credits" replace>Credits</router-link>
+  </footer>
     </div>
 </template>
 

@@ -6,20 +6,20 @@
                 <form>
                     <div>
                     <label for="Building Space">:Building Space</label>
-                    <input v-model="building" type="building" class="form-control" placeholder="building">
+                    <input v-model="building" type="building" placeholder="building">
                     </div>
                     <div>
                     <label for="Study Space">:Study Space</label>
-                    <input v-model="studySpaceName" type="studySpaceName" class="form-control" placeholder="studySpaceName">
+                    <input v-model="studySpaceName" type="studySpaceName" placeholder="studySpaceName">
                     </div>
                     <div>
                     <label for="Availability">:Availability</label>
-                    <input v-model="availability" type="availability" class="form-control" placeholder="available/nearlyFull/full">
+                    <input v-model="availability" type="availability" placeholder="Available/Nearly Full/Full">
                     </div>
                 </form>
             </div>
             <ul v-for="studySpace in studySpaces" :key="studySpace._id">
-            <li>User ID: {{studySpace}}</li>
+            <p class = "sub-title">Study Space: {{studySpace.name}}, Building Name: {{studySpace.buildingName}}, Id: {{studySpace._id}}</p>
             </ul>
             <div class="center-align">
                <v-btn type="button"  v-on:click="report()">Report</v-btn>
@@ -149,9 +149,6 @@ export default {
   methods:{
     toggleClick :function() {
           this.$refs.sidebar.toggle();
-        },
-        closeClick: function() {
-         this.$refs.sidebar.hide();
         },
     report: function() {
             let self = this;
