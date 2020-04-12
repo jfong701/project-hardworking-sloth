@@ -64,7 +64,8 @@
         <li>{{ event.user.userId }} has entered {{ event.geofence.description}} at {{ event.createdAt }}</li>
       </ul>
     </div>
-    
+
+    <div class="hidden">{{buildings}}</div> <!-- ensures websockets connect -->
     <l-map :zoom="zoom" :center="center" style="height: 850px; width: 1000px">
     <l-tile-layer :options="{ maxZoom: 22 }" :url="url" :attribution="attribution"></l-tile-layer>
       <!-- Adds a unique icon for the user in the session -->
@@ -100,7 +101,7 @@
       -->
       <div v-if="geofences">
         <div class="geofences" v-for="geofence in geofences" :key="geofence._id">
-          <l-polygon :lat-lngs="sortPolyCoords(geofence.geometry.coordinates)">
+          <l-polygon :lat-lngs="sortPolyCoords(geofence.geometry.coordinates)" :color="geofence.color">
             <l-popup>
               {{ geofence.description}} ({{ geofence.externalId }})
               <ul>
@@ -142,7 +143,7 @@ export default {
   data() {
     return {
       animate:false,
-            enableRtl: true,
+            enableRtl: false,
             width:'280px',
             type:'Push',
       zoom:19,
@@ -162,6 +163,8 @@ export default {
       userMapIcon: require('../../media/user_map_icon.png'),
       currUserMapIcon: require('../../media/current_user_map_icon.png'),
       iconSize: 32,
+      buildings: null,
+      socket: null,
       studySpaces: null,
       availability: null,
       studySpaceName: null,
@@ -179,6 +182,10 @@ export default {
       return [this.iconSize / 2, this.iconSize];
     }
   },
+  beforeDestroy() {
+    // if this component is being destroyed from DOM, close the socket connection.
+    this.closeSocket();
+  },
   created () {
     let getUsersCont = setInterval(() => {
       this.displayUsers();
@@ -191,19 +198,87 @@ export default {
     }, 8000);
     this.usersData =  (this.loadUsersOnce)? this.getUsersOnce() : getUsersCont;
     this.userData = (this.loadUserOnce)? this.getUserOnce() : getUserCont;
-    this.geofences =  this.displayGeofences();
+    this.geofences =  this.displayGeofences(); // also sets up socket
     this.events = this.displayEvents();
     this.studySpaces = this.displayStudySpaces();
     this.trackData =  (this.loadTrackOnce)? this.getTrackOnce() : getTrackCont;
   },
   methods:{
+    closeSocket: function() {
+      let self = this;
+      if (self.socket) {
+        self.socket.close();
+      }
+    },
+    setupSocket: function() {
+      let self = this;
+
+      // helper function for unescaping html from: https://github.com/validatorjs/validator.js/blob/master/src/lib/unescape.js
+      // used because the names of buildings are escaped in the database
+      function unescape(str) {
+        return (str.replace(/&amp;/g, '&')
+          .replace(/&quot;/g, '"')
+          .replace(/&#x27;/g, "'")
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&#x2F;/g, '/')
+          .replace(/&#x5C;/g, '\\')
+          .replace(/&#96;/g, '`'));
+      }
+
+      const WS_URL = process.env.VUE_APP_WS_URL || 'ws://localhost:5000';
+
+      const socket = new WebSocket(WS_URL);
+      self.socket = socket;
+
+      // listening for updates from the backend
+      socket.addEventListener('message', function(event) {
+        // nextTick - fire after next Vue DOM update cycle
+        self.$nextTick(function() {
+
+          // only set buildings if not a WS ping. (pings are sent to prevent connection sleep on Heroku);
+          if (event.data !== "ping") {
+            // set buildings based on data from websocket.
+            self.buildings = JSON.parse(event.data);
+
+            // match up buildings and geofences by common names, and set colours
+            if (self.buildings && self.geofences) {
+              for (let i = 0; i < self.geofences.length; i++) {
+                for (let j = 0; j < self.buildings.length; j++) {
+                  if (unescape(self.buildings[j]._id) === self.geofences[i].externalId) {
+                    // colours from: https://flatuicolors.com/palette/defo
+                    switch(self.buildings[j].status) {
+                      case "Nearly Full":
+                        self.geofences[i].color = "#f1c40f";
+                        break;
+                      case "Full":
+                        self.geofences[i].color = "#c0392b";
+                        break;
+                      case "Available":
+                        self.geofences[i].color = "#27ae60";
+                        break;
+                      default:
+                        self.geofences[i].color = "#7f8c8d";  
+                    }
+                  }
+                }
+              }
+            }
+          }
+        });
+      });
+    },
     toggleClick :function() {
           this.$refs.sidebar.toggle();
         },
     report: function() {
             let self = this;
-			Report.report(self, this.building, this.studySpaceName, this.availability);
-           },
+            Report.report(self, this.building, this.studySpaceName, this.availability)
+            .then(() => {
+              // only send socket update if valid;
+              self.socket.send("availabilityUpdated");
+            });
+    },
     displayStudySpaces: function () {
       let self = this;
       Report.getStudySpaces(self).then(result => this.studySpaces = result);
@@ -219,7 +294,8 @@ export default {
     },
     displayGeofences: function(){
       let self = this;
-      Radar.getGeofences(self).then(result => this.geofences = result);
+      Radar.getGeofences(self).then(result => this.geofences = result)
+      .then(self.setupSocket());
     },
     displayEvents: function(){
       let self = this;
@@ -266,6 +342,7 @@ export default {
 @import "../../node_modules/@syncfusion/ej2-buttons/styles/material.css";
 @import "../../node_modules/@syncfusion/ej2-vue-navigations/styles/material.css";
 
+.hidden {display: none;}
 
 .center-align {
     text-align: center;
@@ -312,9 +389,5 @@ input {
   box-sizing: border-box;
   border: 2px solid black;
 }
-
-
-
-
 </style>
 
