@@ -185,10 +185,10 @@ export default {
   created () {
     let getUsersCont = setInterval(() => {
       this.displayUsers();
-    }, 8000);
+    }, 12000);
     let getTrackCont = setInterval(() => {
       this.trackOnce();
-    }, 5000);
+    }, 8000);
     this.usersData =  (this.loadUsersOnce)? this.getUsersOnce() : getUsersCont;
     this.userData = this.displayUser();
     this.geofences =  this.displayGeofences(); // also sets up socket
