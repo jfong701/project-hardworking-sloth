@@ -10,7 +10,7 @@
         </header>
         <h1>Credits</h1>
         <!-- TODO: Add code or media that needs to be creditied here -->
-        <h2>HTML & JavaScript code</h2>
+        <h2>HTML &amp; JavaScript code</h2>
         <ul>
             <li>Developed using source code from <a href="https://github.com/ThierrySans/CSCC09">CSCC09 Github</a></li>
         </ul>
