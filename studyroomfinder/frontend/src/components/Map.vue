@@ -144,8 +144,10 @@ export default {
   },
   methods:{
     displayUsers: function () {
-      let self = this;
-      Radar.getUsers(self).then(result => this.usersData = result);
+      setInterval(() => {
+        let self = this;
+        Radar.getUsers(self).then(result => this.usersData = result);
+      }, 25000);
     },
     displayUser: function (){
       setInterval(() => {
