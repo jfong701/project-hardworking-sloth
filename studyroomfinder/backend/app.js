@@ -124,7 +124,8 @@ wss.on('connection', function connection(ws, request, client) {
 
     // on inital connection, send them getAllBuildings
     getAllBuildings().then(res => {
-        ws.send(res);
+        // wait a little bit to allow DOM to setup first.
+        setTimeout(() => {ws.send(res);}, 1000);
     });
 
     // when receiving incoming message, it means they just reported

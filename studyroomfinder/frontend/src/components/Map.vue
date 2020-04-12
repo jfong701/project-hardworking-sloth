@@ -18,10 +18,7 @@
 
     </ul>
     <p> WebSockets Test </p>
-    <!-- <p>{{studySpaces}}</p> -->
-    <ul v-for="building in buildings" :key="building._id">
-      <li>{{building._id}}</li>
-    </ul>
+    <div class="hidden">{{buildings}}</div>
     <l-map :zoom="zoom" :center="center" style="height: 850px; width: 1000px">
     <l-tile-layer :options="{ maxZoom: 22 }" :url="url" :attribution="attribution"></l-tile-layer>
       <!--
@@ -114,9 +111,8 @@ export default {
   },
   created () {
     this.userData = this.displayUsers();
-    this.geofences =  this.displayGeofences();
+    this.geofences =  this.displayGeofences(); // also sets up socket
     this.events = this.displayEvents();
-    this.setupSocket();
   },
   methods:{
     closeSocket: function() {
@@ -189,7 +185,8 @@ export default {
     },
     displayGeofences: function(){
       let self = this;
-      Radar.getGeofences(self).then(result => this.geofences = result);
+      Radar.getGeofences(self).then(result => this.geofences = result)
+      .then(self.setupSocket());
     },
     displayEvents: function(){
       let self = this;
@@ -209,8 +206,7 @@ export default {
 
 <!-- Add "scoped" attribute to limit CSS to this component only -->
 <style>
-
-
+.hidden {display: none;}
 </style>
 
 <!---Reference:
