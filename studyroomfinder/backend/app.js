@@ -71,7 +71,7 @@ let sessionConfig = {
 if (process.env.NODE_ENV === "production") {
     // force-ssl-heroku redirects unencrypted HTTP requests to HTTPS on Heroku.
     app.use(forceSslHeroku);
-    sessionConfig.cookie.secure = true; // only allow cookie over HTTPS connection
+    // sessionConfig.cookie.secure = true; // only allow cookie over HTTPS connection
 }
 app.use(session(sessionConfig));
 
