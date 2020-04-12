@@ -165,7 +165,9 @@ export default {
       studySpaces: null,
       availability: null,
       studySpaceName: null,
-      building: null
+      building: null,
+      loadUsersOnce: true,
+      loadTrackOnce: true,
     };
   },
   computed: {
@@ -181,16 +183,18 @@ export default {
     this.closeSocket();
   },
   created () {
-    this.usersData = setInterval(() => {
+    let getUsersCont = setInterval(() => {
       this.displayUsers();
-    }, 25000); 
+    }, 8000);
+    let getTrackCont = setInterval(() => {
+      this.trackOnce();
+    }, 5000);
+    this.usersData =  (this.loadUsersOnce)? this.getUsersOnce() : getUsersCont;
     this.userData = this.displayUser();
     this.geofences =  this.displayGeofences(); // also sets up socket
     this.events = this.displayEvents();
     this.studySpaces = this.displayStudySpaces();
-    this.trackData =  setInterval(() => {
-      this.trackOnce();
-    }, 15000); 
+    this.trackData =  (this.loadTrackOnce)? this.getTrackOnce() : getTrackCont;
   },
   methods:{
     closeSocket: function() {
@@ -275,16 +279,12 @@ export default {
       Report.getStudySpaces(self).then(result => this.studySpaces = result);
     },
     displayUsers: function () {
-      setInterval(() => {
-        let self = this;
+      let self = this;
         Radar.getUsers(self).then(result => this.usersData = result);
-      }, 25000);
     },
     displayUser: function (){
-      setInterval(() => {
-        let self = this;
-        Radar.getUser(self).then(result => this.userData = result);
-      }, 15000);
+      let self = this;
+      Radar.getUser(self).then(result => this.userData = result);
       
     },
     displayGeofences: function(){
@@ -315,6 +315,14 @@ export default {
     // data such as geofences and events
     trackOnce: function(){
       return Radar.trackOnce();
+    },
+    getTrackOnce: function(){
+      this.trackOnce();
+      this.loadTrackOnce = false;
+    },
+    getUsersOnce: function(){
+      this.displayUsers();
+      this.loadUsersOnce = false;
     }
   }
 }
