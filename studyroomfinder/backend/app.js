@@ -879,6 +879,66 @@ function(req, res, next) {
 });
 
 
+// // TODO: Request to track using Radar
+app.post('/api/track/', 
+[
+    body('deviceId').exists().trim().escape(),
+    body('userId').optional().trim().escape(),
+    body('latitude').exists().trim().escape(),
+    body('longitude').exists().trim().escape(),
+    body('accuracy').exists().trim().escape(),
+], 
+function(req, res){
+    // validation
+    // const errors = validationResult(req);
+    // if (!errors.isEmpty()) {
+    //     const errorMsg = buildErrorMessage(errors);
+    //     return res.status(400).end(errorMsg);
+    // }
+    
+    let deviceId = req.body.deviceId;
+    let userId = req.body.userId;
+    let latitude = req.body.latitude;
+    let longitude = req.body.longitude;
+    let accuracy = req.body.accuracy;
+
+    const data = JSON.stringify({
+        'deviceId': deviceId,
+        'userId': userId,
+        'latitude': latitude,
+        'longitude': longitude,
+        'accuracy': accuracy
+    });
+    
+    let url = "https://api.radar.io/v1/track";
+    var options = {
+        method: "POST",
+        headers: {
+          "Authorization": radar_publish_key,
+          'Content-Type': 'application/json',
+          'Content-Length': data.length
+        }
+      };
+    
+      let dataStr = "";
+    
+      let radarReq = https.request(url, options, function(response){
+        response.on("data", chunk => {
+            dataStr += chunk;
+        });
+        response.on("end", () => {
+          let radarData = JSON.parse(dataStr);
+          // TODO: Error handling for Radar (can get status code from radarData.meta)
+          console.log(data);
+          res.json(JSON.parse(dataStr));
+        });
+      });
+      // TODO: Properly set data in body to be sent to radar (currently only gives back 'meta')
+      radarReq.write(data);
+      radarReq.end();
+
+});
+
 // READ -----------------------------------------------------------------------
 
 
@@ -1257,6 +1317,85 @@ app.get('/api/events/', function(req, res){
   radarReq.end();
 });
 
+// Gets a user
+app.get('/api/user/:username', 
+[
+    param('username').exists()
+], 
+function(req, res){
+    // validation
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        const errorMsg = buildErrorMessage(errors);
+        return res.status(400).end(errorMsg);
+    }
+
+    let username = req.params.username;
+    let url = "https://api.radar.io/v1/users/" + username;
+    var options = {
+        method: "GET",
+        headers: {
+          "Authorization": radar_secret_key
+        }
+      };
+    
+      let dataStr = "";
+    
+      let radarReq = https.request(url, options, function(response){
+        response.on("data", chunk => {
+          dataStr += chunk;
+        });
+        response.on("end", () => {
+          console.log("Radar data for user " + username + " received");
+          let radarData = JSON.parse(dataStr);
+          // TODO: Error handling for Radar (can get status code from radarData.meta)
+          res.end(JSON.stringify(radarData));
+        });
+      });
+      radarReq.end();
+
+});
+
+// Gets all users in a geofence
+app.get('/api/geofences/:externalId/users', 
+[
+    param('externalId').exists()
+], 
+function(req, res){
+    // validation
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        const errorMsg = buildErrorMessage(errors);
+        return res.status(400).end(errorMsg);
+    }
+
+    let externalId = req.params.externalId;
+    let url = "https://api.radar.io/v1/geofences/building/" + externalId + "/users";
+    var options = {
+        method: "GET",
+        headers: {
+          "Authorization": radar_secret_key
+        }
+      };
+    
+      let dataStr = "";
+    
+      let radarReq = https.request(url, options, function(response){
+        response.on("data", chunk => {
+          dataStr += chunk;
+        });
+        response.on("end", () => {
+          console.log("Radar data for geofence " + externalId + " received");
+          let radarData = JSON.parse(dataStr);
+          // TODO: Error handling for Radar (can get status code from radarData.meta)
+          res.end(JSON.stringify(radarData));
+        });
+      });
+      radarReq.end();
+
+});
+
+
 // UPDATE ---------------------------------------------------------------------
 
 
@@ -1431,4 +1570,42 @@ function(req, res, next) {
             return res.json(studySpace);
         });
     });
+});
+
+// Gets deletes a user on Radar
+app.delete('/api/radarUser/:id', 
+[
+    param('id').exists()
+], 
+function(req, res){
+        // validation
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            const errorMsg = buildErrorMessage(errors);
+            return res.status(400).end(errorMsg);
+        }
+
+        let id = req.params.id;
+        let url = "https://api.radar.io/v1/users/" + id;
+        var options = {
+            method: "DELETE",
+            headers: {
+            "Authorization": testSecertKey
+            }
+        };
+        
+        let dataStr = "";
+        
+        let radarReq = https.request(url, options, function(response){
+        response.on("data", chunk => {
+            dataStr += chunk;
+        });
+        response.on("end", () => {
+            let radarData = JSON.parse(dataStr);
+            // TODO: Error handling for Radar (can get status code from radarData.meta)
+            console.log("Deleted Radar user with ID: " + id);    
+            res.end(JSON.stringify(radarData));
+        });
+      });
+    radarReq.end();
 });
