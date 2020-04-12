@@ -130,6 +130,9 @@ export default {
       userMapIcon: require('../../media/user_map_icon.png'),
       iconSize: 32,
       studySpaces: null,
+      availability: null,
+      studySpaceName: null,
+      building: null
     };
   },
   computed: {
@@ -182,7 +185,7 @@ export default {
 }
 </script>
 
-<style>
+<style scoped>
 @import "../../node_modules/@syncfusion/ej2-base/styles/material.css";
 @import "../../node_modules/@syncfusion/ej2-buttons/styles/material.css";
 @import "../../node_modules/@syncfusion/ej2-vue-navigations/styles/material.css";
@@ -225,6 +228,13 @@ export default {
 
 ::placeholder {
   color: black;
+}
+
+input {
+  width: 100%;
+  margin: 8px 0;
+  box-sizing: border-box;
+  border: 2px solid black;
 }
 
 
