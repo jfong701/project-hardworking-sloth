@@ -14,13 +14,14 @@ export default {
 		Radar.setUserId(username);
   },
   trackOnce: function(){
-    let trackData = null;
+    let trackData = [];
     Radar.trackOnce(function(status, location, user, events) {
       // TODO: do something with status, location, user, events
       console.log("Radar: ", status, location, user, events);
       // Note that the location of the user may not be very accurate
-      trackData = [status, location, user, events];
+      trackData.push(status, location, user, events);
     });
+    
     return trackData;
   },
   getUsers: function(event){
