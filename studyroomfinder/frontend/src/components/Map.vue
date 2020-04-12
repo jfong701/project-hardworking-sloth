@@ -171,7 +171,9 @@ export default {
     }
   },
   created () {
-    this.usersData = this.displayUsers();
+    this.usersData = setInterval(() => {
+      this.displayUsers();
+    }, 25000); 
     this.userData = this.displayUser();
     this.geofences =  this.displayGeofences();
     this.events = this.displayEvents();
