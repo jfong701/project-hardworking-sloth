@@ -1269,56 +1269,6 @@ function(req, res){
 
 });
 
-// Gets the travel distance and duration between two locations
-// app.get('/api/route/distance', 
-// [
-//     body('origin').exists(),
-//     body('destination').exists()
-// ], 
-// function(req, res){
-//     // validation
-//     const errors = validationResult(req);
-//     if (!errors.isEmpty()) {
-//         const errorMsg = buildErrorMessage(errors);
-//         return res.status(400).end(errorMsg);
-//     }
-
-//     let origin = req.body.origin;
-//     let destination = req.body.destination;
-
-//     const data = JSON.stringify({
-//         'origin': origin,
-//         'destination': destination,
-//         'modes': 'foot',
-//         'units': 'metric'
-//     });
-    
-//     let url = "https://api.radar.io/v1/route/distance";
-//     var options = {
-//         method: "GET",
-//         headers: {
-//           "Authorization": testPublishKey,
-//           'Content-Type': 'application/json',
-//           'Content-Length': data.length
-//         }
-//       };
-    
-//       let dataStr = "";
-    
-//       let radarReq = https.request(url, options, function(response){
-//         response.on("data", chunk => {
-//           dataStr += chunk;
-//         });
-//         response.on("end", () => {
-//           console.log("Radar data for geofence " + externalId + " received");
-//           let radarData = JSON.parse(dataStr);
-//           // TODO: Error handling for Radar (can get status code from radarData.meta)
-//           res.end(JSON.stringify(radarData));
-//         });
-//       });
-//       radarReq.end();
-
-// });
 
 // UPDATE ---------------------------------------------------------------------
 
