@@ -6,15 +6,15 @@
                 <form>
                     <div>
                     <label for="Building Space">:Building Space</label>
-                    <input v-model="building" type="building" placeholder="building">
+                    <input v-model="building" placeholder="building">
                     </div>
                     <div>
                     <label for="Study Space">:Study Space</label>
-                    <input v-model="studySpaceName" type="studySpaceName" placeholder="studySpaceName">
+                    <input v-model="studySpaceName" placeholder="studySpaceName">
                     </div>
                     <div>
                     <label for="Availability">:Availability</label>
-                    <input v-model="availability" type="availability" placeholder="Available/Nearly Full/Full">
+                    <input v-model="availability" placeholder="Available/Nearly Full/Full">
                     </div>
                 </form>
             </div>
@@ -232,5 +232,3 @@ export default {
 
 </style>
 
-<!---Reference:
-http://jsfiddle.net/Boumi/k04zpLx9 --->
