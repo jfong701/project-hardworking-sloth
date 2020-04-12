@@ -5,7 +5,7 @@ export default {
 		api().post('/signup/', {username: username, password: password})
 		.then(response => {
 			if (response.status == '200') {
-				window.location.href = "/Login";
+				event.$router.replace({ name: "Login" });
 			}
 		})
 		.catch(function(e) {
