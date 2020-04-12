@@ -29,9 +29,9 @@
         
   <div>
     <h1>Map</h1>
-    <div v-if="userData!=null">
+    <div v-if="userData">
       <p>About {{ userData.userId }}</p>
-      <ul v-on:load="this.$forceUpdate()">
+      <ul>
         <li>Location: {{ sortCoords(userData.location.coordinates) }}</li>
         <li>Device type: {{ userData.deviceType }} </li>
         <li>Agent: {{ userData.userAgent }}</li>
@@ -167,7 +167,8 @@ export default {
       studySpaceName: null,
       building: null,
       loadUsersOnce: true,
-      loadTrackOnce: true,
+      loadUserOnce: true,
+      loadTrackOnce: true
     };
   },
   computed: {
@@ -186,11 +187,14 @@ export default {
     let getUsersCont = setInterval(() => {
       this.displayUsers();
     }, 12000);
+    let getUserCont = setInterval(() => {
+      this.displayUser();
+    }, 5000);
     let getTrackCont = setInterval(() => {
       this.trackOnce();
     }, 8000);
     this.usersData =  (this.loadUsersOnce)? this.getUsersOnce() : getUsersCont;
-    this.userData = this.displayUser();
+    this.userData = (this.loadUserOnce)? this.getUserOnce() : getUserCont;
     this.geofences =  this.displayGeofences(); // also sets up socket
     this.events = this.displayEvents();
     this.studySpaces = this.displayStudySpaces();
@@ -321,6 +325,10 @@ export default {
     getUsersOnce: function(){
       this.displayUsers();
       this.loadUsersOnce = false;
+    },
+    getUserOnce: function(){
+      this.displayUser();
+      this.loadUserOnce = false;
     }
   }
 }
