@@ -22,6 +22,7 @@
 <style>
     body {
         background-color: rgba(16, 85, 141, 0.986);
+        /* font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif */
     }
     h1 {
         padding: 0;
