@@ -4,6 +4,7 @@
 - [Live App](https://studyroomfinder.me)
 - [Video](https://)
 - [API documentation (Github Wiki)](https://github.com/UTSCC09/project-hardworking-sloth/wiki/API-Documentation)
+- [Build Instructions (Github Wiki)](https://github.com/UTSCC09/project-hardworking-sloth/wiki/Build-Instructions)
 
 ## Team members of Hardworking Sloth
 - Anurudran Chandrasekaram
