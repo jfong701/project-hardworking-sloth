@@ -1,5 +1,11 @@
 # Study Room Finder
 
+## Links
+- [Live App](https://studyroomfinder.me)
+- [Video](https://youtu.be/b2HlA6m_ho8)
+- [API documentation (Github Wiki)](https://github.com/UTSCC09/project-hardworking-sloth/wiki/API-Documentation)
+- [Build Instructions (Github Wiki)](https://github.com/UTSCC09/project-hardworking-sloth/wiki/Build-Instructions)
+
 ## Team members of Hardworking Sloth
 - Anurudran Chandrasekaram
 - Jason Fong
@@ -11,27 +17,28 @@ Have you ever walked all over campus looking for study space? Not anymore! Study
 ## Key features for Beta version
 - Map of UTSC with overlays for study space
 - Ability for users to report free study space
-- Based on user location, recommend closest study space with availability
+
 
 ## Key features for Final version
-- Chat with users in a study space
-- Aggregation of reports by multiple users to give more accurate estimates
-- Points system for users to reward them for helping out classmates
-- More properties for user accounts (profile pictures, program, names)
-- Options for users to provide more detailed information for study spaces (group availability, good wifi, noisy or quiet, star ratings, reviews)
-- Search for study spaces with filters (available space, closest to me, group availability)
+- Live updating of geofences of a building using websockets where it shows the availability of study rooms by updating the color to green for available, yellow for occupied and red for full
+- Use of vuetify for updating the UI elements to make the website look better
+- Based on user location, recommend closest study space with availability
 
 ## Technologies
 - Node.js: for running our application backend
 - Express.js, express-session: handling HTTP requests
-- Front end framework: Currently deciding between Vue and React
-- Maps API: Currently deciding between Google Maps API or OpenStreetMap+Leaflet
-- MongoDB: Storing study spot, user, and location information
-- NPM packages for integration between Maps and Frontend
+- Front end framework: Vue and Vuetify
+- Heroku: Deployment Platform
+- Javascript built-in technologies: native Websockets API, Promises
+- Maps UI Library: Leaflet, Vue-Leaflet
+- Map Tiles Provider: Mapbox API
+- MongoDB: Storing study spot, user, location information, location queries
+- Radar.io: a Geofencing SDK and API
+- ws: Websockets library for Node.js
 
 ## Top 5 Technical Challenges
-- Maps API: Learning to use and integrate a map API into our application
-- Frontend: Learning to use a front end framework such as Vue or React
-- Maps frontend: Integration of map with the use of front end frameworks
-- Frontend design for all devices: Creating a Desktop and mobile Friendly, responsive design
-- NPM Packages and other libraries: Finding and using packages that may allow easier integration of map components in frontend, and handling location related data requests in backend
+- Vue: Learning to use a front end framework such as Vue and related component libraries such as Vuetify
+- Maps frontend: Creating map components using Vue Leaflet and interfacing with  other components
+- Radar API: Integrating geofences into project and updating backend and map with Radar events
+- Asynchronicity: Handling asynchronous events for UI updates and network requests between frontend, backend and Radar
+- WebSockets: Deciding between libraries (socket.io vs ws), keeping backend performant, ensuring connection stays open on Heroku, and integrating properly in Vue
