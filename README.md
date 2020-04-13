@@ -1,8 +1,9 @@
 # Study Room Finder
 
 ## Links
-- [Video Demo](https://)
-- [API documentation](https://github.com/UTSCC09/project-hardworking-sloth/wiki/API-Documentation)
+- [Live App](https://studyroomfinder.me)
+- [Video](https://)
+- [API documentation (Github Wiki)](https://github.com/UTSCC09/project-hardworking-sloth/wiki/API-Documentation)
 
 ## Team members of Hardworking Sloth
 - Anurudran Chandrasekaram
