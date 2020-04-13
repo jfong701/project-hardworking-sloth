@@ -33,6 +33,10 @@
             <li>Freecodecamp: <a href="https://www.freecodecamp.org/forum/t/node-express-passing-request-headers-in-a-get-request/235160/4">How to pass Headers in GET request</a></li>
             <li>Radar.io official docs: <a href="https://radar.io/documentation/api">Radar Docs</a></li>
         </ul>
+        <h2>User Icons</h2>
+        <ul>
+            <li>Made by team member Omid Najmeddini</li>
+        </ul>
         
         <h2>Jason Credits</h2>
         <h3>(Backend and Deployment)</h3>
