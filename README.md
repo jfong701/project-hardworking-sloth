@@ -2,7 +2,7 @@
 
 ## Links
 - [Live App](https://studyroomfinder.me)
-- [Video](https://)
+- [Video](https://youtu.be/b2HlA6m_ho8)
 - [API documentation (Github Wiki)](https://github.com/UTSCC09/project-hardworking-sloth/wiki/API-Documentation)
 - [Build Instructions (Github Wiki)](https://github.com/UTSCC09/project-hardworking-sloth/wiki/Build-Instructions)
 
