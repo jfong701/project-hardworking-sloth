@@ -20,7 +20,7 @@
             <li>Map built using Vue Leaflet library: <a href="https://vue2-leaflet.netlify.com/">Vue Leaflet Docs</a></li>
             <li>Map tiles provided by Mapbox API: <a href="https://docs.mapbox.com/api/">MapBox API</a></li>
         </ul>
-        <h2>For the login and sign up pages UI elements such as the form and buttons</h2>
+        <h2>For the login sign up and homepage pages UI elements such as the form, buttons and nav bars</h2>
         <ul>
             <li>Developed using source code from <a href="https://vuetifyjs.com/en/components/parallax/">Vuetify</a></li>
         </ul>
