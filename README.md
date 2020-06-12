@@ -1,7 +1,7 @@
 # Study Room Finder
 
 ## Links
-- [Live App](https://studyroomfinder.herokuapp.com)
+- [Live App](https://studyroomfinder.herokuapp.com) (Note: will take a few seconds for initial load, using free dynos on Heroku means that the dyno will probably be sleeping when you try to open it)
 - [Video](https://youtu.be/b2HlA6m_ho8)
 - [API documentation (Github Wiki)](https://github.com/UTSCC09/project-hardworking-sloth/wiki/API-Documentation)
 - [Build Instructions (Github Wiki)](https://github.com/UTSCC09/project-hardworking-sloth/wiki/Build-Instructions)
